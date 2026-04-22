@@ -109,13 +109,15 @@ export default async function ChapterProgressPage() {
     const batch   = l.batches
     const teacher = l.user_profiles
     if (!batch || !teacher) continue
+    // Derive the plan's batch_type from batch name (same as planner/log form do)
+    const batchBase = batch.name.replace(/\s*[–\-]\s*\d+.*$/, '').trim()
     const key = [teacher.name, batch.name, l.subject, l.chapter_name].join('|')
     if (!aggMap.has(key)) {
       aggMap.set(key, {
         teacherName: teacher.name,
         batchName:   batch.name,
         centerName:  batch.centers?.name ?? '',
-        batchType:   batch.batch_type,
+        batchType:   batchBase,
         classLevel:  batch.class_level,
         subject:     l.subject,
         chapterName: l.chapter_name,
