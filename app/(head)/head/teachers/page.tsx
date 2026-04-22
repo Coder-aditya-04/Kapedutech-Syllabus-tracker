@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { CenterBadge } from '@/components/shared/CenterBadge'
-import { SubjectBadge } from '@/components/shared/SubjectBadge'
+import { DeleteTeacherButton } from '@/components/teacher/DeleteTeacherButton'
 import Link from 'next/link'
 
 interface TeacherRow {
@@ -95,7 +95,7 @@ export default async function TeachersPage() {
                     className="shrink-0 text-xs font-black px-3 py-1.5 rounded-full"
                     style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)', color: '#7C3AED', border: '1px solid rgba(124,58,237,0.2)' }}
                   >
-                    {assignments.length} {assignments.length === 1 ? 'subject' : 'subjects'}
+                    {assignments.length} {assignments.length === 1 ? 'batch' : 'batches'}
                   </div>
                 </div>
 
@@ -107,7 +107,6 @@ export default async function TeachersPage() {
                     <div className="space-y-2">
                       {assignments.filter(a => a.batches).map(a => (
                         <div key={a.id} className="flex items-center gap-2 text-sm flex-wrap">
-                          <SubjectBadge subject={a.subject} />
                           <span className="font-semibold text-gray-700">{a.batches!.name}</span>
                           <span className="text-gray-400 text-xs">· {a.batches!.centers.name}</span>
                         </div>
@@ -117,10 +116,13 @@ export default async function TeachersPage() {
                 </div>
 
                 {/* Footer */}
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-xs text-gray-400 font-semibold">
-                    Joined {new Date(teacher.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
-                  </span>
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-400 font-semibold">
+                      Joined {new Date(teacher.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                    </span>
+                    <DeleteTeacherButton teacherId={teacher.id} teacherName={teacher.name} />
+                  </div>
                   <Link
                     href={`/head/teachers/${teacher.id}`}
                     className="text-sm font-bold text-violet-600 hover:text-violet-800 hover:underline transition-colors"
