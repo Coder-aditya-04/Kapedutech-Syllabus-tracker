@@ -14,6 +14,7 @@ interface LogRow {
   subject: string
   chapter_name: string
   lectures_this_week: number
+  notes: string | null
   batches: { batch_type: string; class_level: string; name: string; centers: { name: string } } | null
   user_profiles: { name: string } | null
 }
@@ -50,11 +51,11 @@ function matchPlan(
 type Status = 'rushed' | 'over' | 'on_track' | 'no_plan' | 'in_progress'
 
 const STATUS_STYLE: Record<Status, { bg: string; text: string; border: string; label: string; emoji: string }> = {
-  rushed:      { bg: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-200',    label: 'Rushed',       emoji: '⚠️' },
-  over:        { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', label: 'Over-planned', emoji: '🔵' },
-  on_track:    { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200',  label: 'On Track',     emoji: '✅' },
-  in_progress: { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200',   label: 'In Progress',  emoji: '🔄' },
-  no_plan:     { bg: 'bg-gray-50',   text: 'text-gray-500',   border: 'border-gray-200',   label: 'No Plan',      emoji: '⚪' },
+  rushed:      { bg: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-200',    label: 'Rushed ✓Done',  emoji: '⚠️' },
+  over:        { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', label: 'Over ✓Done',    emoji: '🔵' },
+  on_track:    { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200',  label: 'Done ✓',        emoji: '✅' },
+  in_progress: { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200',   label: 'In Progress',   emoji: '🔄' },
+  no_plan:     { bg: 'bg-gray-50',   text: 'text-gray-500',   border: 'border-gray-200',   label: 'No Plan',       emoji: '⚪' },
 }
 
 interface ChapterRow {
@@ -68,6 +69,7 @@ interface ChapterRow {
   planned: number
   done: number
   percent: number
+  isComplete: boolean
   status: Status
 }
 
@@ -85,7 +87,7 @@ export default async function ChapterProgressPage() {
   const [{ data: rawPlans }, { data: rawLogs }] = await Promise.all([
     supabase.from('lecture_plans').select('batch_type, class_level, subject, topic_name, planned_lectures'),
     supabase.from('weekly_logs')
-      .select('subject, chapter_name, lectures_this_week, batches(batch_type, class_level, name, centers(name)), user_profiles(name)')
+      .select('subject, chapter_name, lectures_this_week, notes, batches(batch_type, class_level, name, centers(name)), user_profiles(name)')
       .eq('is_holiday', false),
   ])
 
@@ -99,10 +101,11 @@ export default async function ChapterProgressPage() {
     planMap.set(key, (planMap.get(key) ?? 0) + p.planned_lectures)
   }
 
-  // Aggregate logs: (teacher, batch, subject, chapter) → total done
+  // Aggregate logs: (teacher, batch, subject, chapter) → total done + completion flag
   const aggMap = new Map<string, {
     teacherName: string; batchName: string; centerName: string
-    batchType: string; classLevel: string; subject: string; chapterName: string; done: number
+    batchType: string; classLevel: string; subject: string; chapterName: string
+    done: number; isComplete: boolean
   }>()
 
   for (const l of logs) {
@@ -122,9 +125,12 @@ export default async function ChapterProgressPage() {
         subject:     l.subject,
         chapterName: l.chapter_name,
         done: 0,
+        isComplete: false,
       })
     }
-    aggMap.get(key)!.done += l.lectures_this_week
+    const entry = aggMap.get(key)!
+    entry.done += l.lectures_this_week
+    if (l.notes?.includes('✅ Chapter completed.')) entry.isComplete = true
   }
 
   // Build result rows
@@ -134,11 +140,18 @@ export default async function ChapterProgressPage() {
     const percent = planned > 0 ? Math.round((agg.done / planned) * 100) : 0
 
     let status: Status
-    if (planned === 0)        status = 'no_plan'
-    else if (percent > 120)   status = 'over'
-    else if (percent < 75)    status = 'rushed'
-    else if (percent <= 100)  status = 'in_progress'
-    else                      status = 'on_track'
+    if (planned === 0) {
+      status = 'no_plan'
+    } else if (!agg.isComplete) {
+      // Chapter still in progress — never flag as rushed regardless of percentage
+      status = 'in_progress'
+    } else if (percent > 120) {
+      status = 'over'
+    } else if (percent < 75) {
+      status = 'rushed'  // Only warn when teacher explicitly marked chapter as done
+    } else {
+      status = 'on_track'
+    }
 
     rows.push({ ...agg, planned, percent, status })
   }

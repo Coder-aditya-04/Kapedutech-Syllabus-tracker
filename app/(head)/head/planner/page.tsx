@@ -17,6 +17,18 @@ interface PlanRow {
 const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const ALL_SUBJECTS = ['Physics','Chemistry','Botany','Zoology','Mathematics']
 
+// Estimate end date: 1 lecture per working day, Sundays off (Mon–Sat)
+function calcEndDate(startDate: string | null, plannedLectures: number): string {
+  if (!startDate || !plannedLectures) return '—'
+  const d = new Date(startDate)
+  let remaining = plannedLectures - 1 // start date itself counts as day 1
+  while (remaining > 0) {
+    d.setDate(d.getDate() + 1)
+    if (d.getDay() !== 0) remaining-- // skip Sundays (0)
+  }
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+}
+
 const SUBJECT_COLORS: Record<string, string> = {
   Physics:     'bg-blue-100 text-blue-800 border-blue-200',
   Chemistry:   'bg-purple-100 text-purple-800 border-purple-200',
@@ -229,7 +241,10 @@ export default function PlannerPage() {
                     <th className="px-5 py-3 font-bold text-gray-500 text-xs uppercase tracking-wide w-16">Month</th>
                     <th className="px-5 py-3 font-bold text-gray-500 text-xs uppercase tracking-wide">Topic</th>
                     <th className="px-5 py-3 font-bold text-gray-500 text-xs uppercase tracking-wide text-center w-24">Lectures</th>
-                    <th className="px-5 py-3 font-bold text-gray-500 text-xs uppercase tracking-wide w-36">Start Date</th>
+                    <th className="px-5 py-3 font-bold text-gray-500 text-xs uppercase tracking-wide w-32">Start Date</th>
+                    <th className="px-5 py-3 font-bold text-gray-500 text-xs uppercase tracking-wide w-32">
+                      Est. End <span className="normal-case font-normal text-gray-400">(Sun off)</span>
+                    </th>
                     <th className="px-5 py-3 w-24"></th>
                   </tr>
                 </thead>
@@ -260,6 +275,9 @@ export default function PlannerPage() {
                                 className="w-full px-2 py-1.5 border border-violet-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-violet-500"
                               />
                             </td>
+                            <td className="px-2 py-2 text-xs text-violet-500 font-semibold">
+                              {editRow.start_date ? calcEndDate(editRow.start_date, editRow.planned_lectures) : '—'}
+                            </td>
                             <td className="px-2 py-2">
                               <div className="flex gap-1">
                                 <button onClick={saveEdit} disabled={saving}
@@ -282,6 +300,11 @@ export default function PlannerPage() {
                               {p.start_date
                                 ? new Date(p.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
                                 : '—'}
+                            </td>
+                            <td className="px-5 py-3 text-xs font-semibold">
+                              {p.start_date
+                                ? <span className="text-violet-600">{calcEndDate(p.start_date, p.planned_lectures)}</span>
+                                : <span className="text-gray-300">—</span>}
                             </td>
                             <td className="px-5 py-3">
                               <div className="flex gap-1.5">
