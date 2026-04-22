@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useParams } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { CenterBadge } from '@/components/shared/CenterBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
 import Link from 'next/link'
@@ -29,16 +27,14 @@ export default function TeacherEditPage() {
   const { id } = useParams<{ id: string }>()
   const supabase = createClient()
 
-  const [teacher, setTeacher] = useState<Teacher | null>(null)
+  const [teacher, setTeacher]         = useState<Teacher | null>(null)
   const [assignments, setAssignments] = useState<Assignment[]>([])
-  const [batches, setBatches] = useState<Batch[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  // Add form state
-  const [addBatchId, setAddBatchId] = useState('')
-  const [addSubject, setAddSubject] = useState('')
+  const [batches, setBatches]         = useState<Batch[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [saving, setSaving]           = useState(false)
+  const [error, setError]             = useState('')
+  const [addBatchId, setAddBatchId]   = useState('')
+  const [addSubject, setAddSubject]   = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -51,12 +47,12 @@ export default function TeacherEditPage() {
     setAssignments(aRes.data as unknown as Assignment[])
     setBatches(bRes.data as unknown as Batch[])
     setLoading(false)
-  }, [id])
+  }, [id]) // eslint-disable-line
 
   useEffect(() => { load() }, [load])
 
-  const selectedBatch = batches.find(b => b.id === addBatchId)
-  const availableSubjects = selectedBatch
+  const selectedBatch      = batches.find(b => b.id === addBatchId)
+  const availableSubjects  = selectedBatch
     ? (selectedBatch.batch_type.startsWith('NEET') ? NEET_SUBJECTS : JEE_SUBJECTS)
     : []
 
@@ -75,105 +71,97 @@ export default function TeacherEditPage() {
         .insert({ teacher_id: id, batch_id: addBatchId, subject: addSubject, is_active: true })
     }
     setAddBatchId(''); setAddSubject('')
-    await load()
-    setSaving(false)
+    await load(); setSaving(false)
   }
 
   async function toggleAssignment(assignmentId: string, currentActive: boolean) {
     setSaving(true)
     await supabase.from('teacher_batch_assignments').update({ is_active: !currentActive }).eq('id', assignmentId)
-    await load()
-    setSaving(false)
+    await load(); setSaving(false)
   }
 
   async function updateRole(newRole: string) {
     setSaving(true)
     await supabase.from('user_profiles').update({ role: newRole }).eq('id', id)
-    await load()
-    setSaving(false)
+    await load(); setSaving(false)
   }
 
-  if (loading) {
-    return (
-      <div className="max-w-2xl">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-64" />
-          <div className="h-32 bg-gray-200 rounded" />
-          <div className="h-48 bg-gray-200 rounded" />
-        </div>
-      </div>
-    )
-  }
+  if (loading) return (
+    <div className="max-w-2xl animate-pulse space-y-4">
+      <div className="h-8 bg-gray-200 rounded-xl w-64" />
+      <div className="h-32 bg-gray-200 rounded-2xl" />
+      <div className="h-48 bg-gray-200 rounded-2xl" />
+    </div>
+  )
 
-  if (!teacher) {
-    return (
-      <div className="max-w-2xl">
-        <p className="text-gray-500">Teacher not found.</p>
-        <Link href="/head/teachers" className="text-purple-700 text-sm font-semibold mt-2 inline-block">← Back to Teachers</Link>
-      </div>
-    )
-  }
+  if (!teacher) return (
+    <div className="max-w-2xl">
+      <p className="text-gray-500">Teacher not found.</p>
+      <Link href="/head/teachers" className="text-violet-600 text-sm font-bold mt-2 inline-block">← Back to Teachers</Link>
+    </div>
+  )
 
-  const activeAssignments = assignments.filter(a => a.is_active)
+  const activeAssignments   = assignments.filter(a => a.is_active)
   const inactiveAssignments = assignments.filter(a => !a.is_active)
+  const initials = teacher.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (
-    <div className="max-w-2xl">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/head/teachers" className="text-gray-400 hover:text-gray-600 text-sm">← Teachers</Link>
+    <div className="max-w-2xl animate-fade-up">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 mb-6 text-sm">
+        <Link href="/head/teachers" className="text-gray-400 hover:text-violet-600 font-semibold transition-colors">👨‍🏫 Teachers</Link>
         <span className="text-gray-300">/</span>
-        <h1 className="text-xl font-bold text-gray-900">{teacher.name}</h1>
+        <span className="font-bold text-gray-900">{teacher.name}</span>
       </div>
 
-      {/* Teacher info */}
-      <Card className="mb-4">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Profile</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-bold text-gray-900">{teacher.name}</div>
-              {teacher.employee_id && <div className="text-xs text-gray-400">{teacher.employee_id}</div>}
-            </div>
-            {teacher.centers && <CenterBadge name={teacher.centers.name} />}
+      {/* Teacher profile card */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-5 card-lift">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-4" style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' }}>
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-base font-black text-white shrink-0"
+            style={{ background: 'linear-gradient(135deg,#7C3AED,#1A73E8)' }}>
+            {initials}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Role:</span>
-            <div className="flex gap-1.5">
+          <div className="flex-1">
+            <h2 className="text-lg font-black text-gray-900">{teacher.name}</h2>
+            {teacher.employee_id && <p className="text-xs text-gray-500 font-semibold">{teacher.employee_id}</p>}
+          </div>
+          {teacher.centers && <CenterBadge name={teacher.centers.name} />}
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-bold text-gray-500">Role:</span>
+            <div className="flex gap-2">
               {['teacher', 'academic_head', 'director'].map(r => (
                 <button
-                  key={r}
-                  onClick={() => updateRole(r)}
-                  disabled={saving}
-                  className={`text-xs px-2.5 py-1 rounded-full font-semibold border transition-colors ${
+                  key={r} onClick={() => updateRole(r)} disabled={saving}
+                  className={`text-xs px-3 py-1.5 rounded-full font-bold border transition-all ${
                     teacher.role === r
-                      ? 'bg-purple-700 text-white border-purple-700'
-                      : 'bg-white text-gray-600 border-gray-300 hover:border-purple-400'
+                      ? 'text-white border-violet-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-violet-400'
                   }`}
+                  style={teacher.role === r ? { background: 'linear-gradient(135deg,#7C3AED,#1A73E8)' } : {}}
                 >
                   {r === 'academic_head' ? 'Head' : r.charAt(0).toUpperCase() + r.slice(1)}
                 </button>
               ))}
             </div>
           </div>
-          <div className="text-xs text-gray-400">{activeAssignments.length} active subject assignment{activeAssignments.length !== 1 ? 's' : ''}</div>
-        </CardContent>
-      </Card>
+          <p className="text-sm text-gray-400 font-semibold">{activeAssignments.length} active subject assignment{activeAssignments.length !== 1 ? 's' : ''}</p>
+        </div>
+      </div>
 
       {/* Add assignment */}
-      <Card className="mb-4">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Add Assignment</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-5 card-lift">
+        <div className="px-6 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)' }}>
+          <h2 className="text-base font-black text-gray-900">➕ Add Assignment</h2>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1 block">Batch</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Batch</label>
               <select
-                value={addBatchId}
-                onChange={e => { setAddBatchId(e.target.value); setAddSubject('') }}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                value={addBatchId} onChange={e => { setAddBatchId(e.target.value); setAddSubject('') }}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
               >
                 <option value="">Select batch…</option>
                 {batches.map(b => (
@@ -182,87 +170,78 @@ export default function TeacherEditPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1 block">Subject</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Subject</label>
               <select
-                value={addSubject}
-                onChange={e => setAddSubject(e.target.value)}
-                disabled={!addBatchId}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400"
+                value={addSubject} onChange={e => setAddSubject(e.target.value)} disabled={!addBatchId}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
               >
                 <option value="">Select subject…</option>
                 {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
-          {error && <div className="text-red-600 text-xs">{error}</div>}
-          <Button
-            onClick={addAssignment}
-            disabled={saving || !addBatchId || !addSubject}
-            className="text-white"
-            style={{ background: '#6929C4' }}
+          {error && <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-2">{error}</div>}
+          <button
+            onClick={addAssignment} disabled={saving || !addBatchId || !addSubject}
+            className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg,#7C3AED,#1A73E8)' }}
           >
             {saving ? 'Saving…' : 'Add Assignment'}
-          </Button>
-        </CardContent>
-      </Card>
+          </button>
+        </div>
+      </div>
 
       {/* Active assignments */}
-      <Card className="mb-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Active Assignments ({activeAssignments.length})</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {activeAssignments.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-gray-400">No active assignments yet</div>
-          ) : (
-            <div>
-              {activeAssignments.map(a => (
-                <div key={a.id} className="flex items-center justify-between px-4 py-3 border-b last:border-0 hover:bg-gray-50">
-                  <div className="flex items-center gap-2">
-                    <SubjectBadge subject={a.subject} />
-                    <span className="text-sm font-medium text-gray-700">{a.batches?.name}</span>
-                    {a.batches && <CenterBadge name={a.batches.centers.name} />}
-                  </div>
-                  <button
-                    onClick={() => toggleAssignment(a.id, true)}
-                    disabled={saving}
-                    className="text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                  >
-                    Remove
-                  </button>
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-5">
+        <div className="px-6 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg,#fafafa,#f5f3ff)' }}>
+          <h2 className="text-base font-black text-gray-900">✅ Active Assignments <span className="text-gray-400 font-bold">({activeAssignments.length})</span></h2>
+        </div>
+        {activeAssignments.length === 0 ? (
+          <div className="px-6 py-8 text-gray-400 font-semibold text-sm text-center">No active assignments yet</div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {activeAssignments.map(a => (
+              <div key={a.id} className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/60 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <SubjectBadge subject={a.subject} />
+                  <span className="font-semibold text-gray-700">{a.batches?.name}</span>
+                  {a.batches && <CenterBadge name={a.batches.centers.name} />}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <button
+                  onClick={() => toggleAssignment(a.id, true)} disabled={saving}
+                  className="text-sm font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Inactive assignments */}
       {inactiveAssignments.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base text-gray-400">Past Assignments ({inactiveAssignments.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div>
-              {inactiveAssignments.map(a => (
-                <div key={a.id} className="flex items-center justify-between px-4 py-3 border-b last:border-0 opacity-50">
-                  <div className="flex items-center gap-2">
-                    <SubjectBadge subject={a.subject} />
-                    <span className="text-sm text-gray-500">{a.batches?.name}</span>
-                  </div>
-                  <button
-                    onClick={() => toggleAssignment(a.id, false)}
-                    disabled={saving}
-                    className="text-xs text-green-600 hover:text-green-800 font-semibold px-2 py-1 rounded hover:bg-green-50 transition-colors"
-                  >
-                    Restore
-                  </button>
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden opacity-70">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+            <h2 className="text-base font-bold text-gray-500">Past Assignments ({inactiveAssignments.length})</h2>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {inactiveAssignments.map(a => (
+              <div key={a.id} className="flex items-center justify-between px-6 py-3.5">
+                <div className="flex items-center gap-2.5">
+                  <SubjectBadge subject={a.subject} />
+                  <span className="text-sm text-gray-500">{a.batches?.name}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <button
+                  onClick={() => toggleAssignment(a.id, false)} disabled={saving}
+                  className="text-sm font-bold text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

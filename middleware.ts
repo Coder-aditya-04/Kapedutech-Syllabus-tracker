@@ -68,7 +68,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Role-based route guards
-  if (pathname.startsWith('/teacher') && role !== 'teacher') {
+  // Head/director can also access /teacher/log and /teacher/history (they teach too)
+  const teacherAllowed = ['teacher', 'academic_head', 'director']
+  if (pathname.startsWith('/teacher') && !teacherAllowed.includes(role)) {
     return NextResponse.redirect(new URL('/head/dashboard', request.url))
   }
   if (pathname.startsWith('/head') && !['academic_head', 'director'].includes(role)) {

@@ -7,5 +7,17 @@ export default async function TeacherLogPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  return <WeeklyLogForm userId={user.id} />
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role, name')
+    .eq('user_id', user.id)
+    .single()
+
+  return (
+    <WeeklyLogForm
+      userId={user.id}
+      userRole={profile?.role ?? 'teacher'}
+      userName={profile?.name ?? 'Teacher'}
+    />
+  )
 }

@@ -4,7 +4,6 @@ import { PaceStatusBadge } from '@/components/shared/PaceStatusBadge'
 import { CenterBadge } from '@/components/shared/CenterBadge'
 import { BatchTypeBadge } from '@/components/shared/BatchTypeBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import type { PaceStatus } from '@/lib/supabase/types'
 
@@ -93,103 +92,109 @@ export default async function HeadDashboardPage() {
   return (
     <div>
       {/* Page header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pace Overview</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Monthly progress vs plan · {monthKey} {new Date().getFullYear()}</p>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">📊 Pace Overview</h1>
+          <p className="text-gray-500 text-base mt-1">Monthly progress vs plan · <span className="font-semibold text-violet-600">{monthKey} {new Date().getFullYear()}</span></p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/head/alerts" className="text-sm px-3 py-1.5 rounded-lg bg-red-50 text-red-700 font-semibold hover:bg-red-100 transition-colors">
+        <div className="flex items-center gap-3">
+          <Link href="/head/alerts" className="text-sm px-4 py-2 rounded-xl font-bold transition-all hover:scale-105"
+            style={{ background: 'linear-gradient(135deg,#fee2e2,#fecaca)', color: '#b91c1c', border: '1px solid #fca5a5' }}>
             ⚠️ {statusCounts.behind + statusCounts.slow} alerts
           </Link>
-          <Link href="/head/logs" className="text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition-colors">
-            All logs
+          <Link href="/head/logs" className="text-sm px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-all hover:scale-105">
+            📋 All logs
           </Link>
         </div>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8 stagger">
         {[
-          { label: 'No Entry',    count: statusCounts.no_entry, color: 'text-gray-600', bg: 'bg-gray-50', emoji: '⚪' },
-          { label: 'Behind',      count: statusCounts.behind,   color: 'text-red-700',  bg: 'bg-red-50',  emoji: '🔴' },
-          { label: 'On Track',    count: statusCounts.on_track, color: 'text-green-700',bg: 'bg-green-50',emoji: '🟢' },
-          { label: 'Too Fast',    count: statusCounts.fast,     color: 'text-blue-700', bg: 'bg-blue-50', emoji: '🔵' },
+          { label: 'No Entry',  count: statusCounts.no_entry, emoji: '⚪',
+            gradient: 'linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%)',
+            border: 'rgba(148,163,184,0.3)', numColor: '#475569' },
+          { label: 'Behind',    count: statusCounts.behind,   emoji: '🔴',
+            gradient: 'linear-gradient(135deg,#fff1f2 0%,#ffe4e6 100%)',
+            border: 'rgba(248,113,113,0.4)', numColor: '#dc2626' },
+          { label: 'On Track',  count: statusCounts.on_track, emoji: '🟢',
+            gradient: 'linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%)',
+            border: 'rgba(74,222,128,0.4)', numColor: '#16a34a' },
+          { label: 'Too Fast',  count: statusCounts.fast,     emoji: '🔵',
+            gradient: 'linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%)',
+            border: 'rgba(96,165,250,0.4)', numColor: '#2563eb' },
         ].map(s => (
-          <Card key={s.label} className={`${s.bg} border-0`}>
-            <CardContent className="pt-4 pb-3">
-              <div className="text-2xl font-black">{s.count}</div>
-              <div className={`text-sm font-semibold ${s.color} mt-0.5`}>{s.emoji} {s.label}</div>
-            </CardContent>
-          </Card>
+          <div key={s.label} className="rounded-2xl p-5 card-lift" style={{ background: s.gradient, border: `1.5px solid ${s.border}` }}>
+            <div className="text-4xl font-black mb-1" style={{ color: s.numColor }}>{s.count}</div>
+            <div className="text-sm font-bold text-gray-600">{s.emoji} {s.label}</div>
+          </div>
         ))}
       </div>
 
       {/* Missing submissions alert */}
       {missingCount > 0 && (
-        <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl mb-6">
-          <span className="text-2xl">📝</span>
-          <div>
-            <div className="font-bold text-yellow-800">{missingCount} teacher{missingCount > 1 ? 's' : ''} haven&apos;t submitted Week {currentWeek}</div>
-            <Link href="/head/logs" className="text-yellow-700 text-sm underline">View who&apos;s missing →</Link>
+        <div className="flex items-center gap-4 p-5 rounded-2xl mb-8 card-lift"
+          style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1.5px solid rgba(251,191,36,0.4)' }}>
+          <div className="text-3xl">📝</div>
+          <div className="flex-1">
+            <div className="font-bold text-yellow-900 text-base">{missingCount} teacher{missingCount > 1 ? 's' : ''} haven&apos;t submitted Week {currentWeek}</div>
+            <Link href="/head/logs" className="text-yellow-700 text-sm font-semibold underline">View who&apos;s missing →</Link>
           </div>
         </div>
       )}
 
       {/* Pace table */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-bold">Batch × Subject Pace — {monthKey}</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50 text-left">
-                  <th className="px-4 py-3 font-semibold text-gray-600">Center</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Batch</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Subject</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 text-center">Actual</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 text-center">Planned</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 text-center">%</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Status</th>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg,#fafafa,#f5f3ff)' }}>
+          <h2 className="text-lg font-bold text-gray-900">Batch × Subject Pace — <span className="text-violet-600">{monthKey}</span></h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/60 text-left">
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Center</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Batch</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Subject</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Actual</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Planned</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">%</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={`${row.batch.id}-${row.subject}`} className={`border-b border-gray-50 transition-colors hover:bg-violet-50/40 ${i % 2 === 1 ? 'bg-gray-50/30' : ''}`}>
+                  <td className="px-5 py-3">
+                    <CenterBadge name={row.batch.centers.name} />
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="font-bold text-gray-900 text-sm">{row.batch.name}</div>
+                    <div className="flex gap-1.5 mt-0.5">
+                      <BatchTypeBadge type={row.batch.batch_type} />
+                      <span className="text-[10px] text-gray-400 font-semibold">Cl. {row.batch.class_level}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <SubjectBadge subject={row.subject} />
+                  </td>
+                  <td className="px-5 py-3 text-center font-black text-gray-900 text-base">{row.actual}</td>
+                  <td className="px-5 py-3 text-center text-gray-500 font-semibold">{row.paceResult.planned}</td>
+                  <td className="px-5 py-3 text-center">
+                    {row.paceResult.planned > 0 ? (
+                      <span className={`font-black text-base ${row.paceResult.status === 'behind' ? 'text-red-600' : row.paceResult.status === 'slow' ? 'text-yellow-600' : row.paceResult.status === 'fast' ? 'text-blue-600' : 'text-green-600'}`}>
+                        {row.paceResult.percent}%
+                      </span>
+                    ) : <span className="text-gray-300 font-semibold">—</span>}
+                  </td>
+                  <td className="px-5 py-3">
+                    <PaceStatusBadge status={row.paceResult.status} />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr key={`${row.batch.id}-${row.subject}`} className={`border-b ${i % 2 === 1 ? 'bg-gray-50/50' : ''} hover:bg-gray-50 transition-colors`}>
-                    <td className="px-4 py-2.5">
-                      <CenterBadge name={row.batch.centers.name} />
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="font-semibold text-gray-900 text-xs">{row.batch.name}</div>
-                      <div className="flex gap-1 mt-0.5">
-                        <BatchTypeBadge type={row.batch.batch_type} />
-                        <span className="text-[10px] text-gray-400 font-medium">Cl. {row.batch.class_level}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <SubjectBadge subject={row.subject} />
-                    </td>
-                    <td className="px-4 py-2.5 text-center font-bold text-gray-900">{row.actual}</td>
-                    <td className="px-4 py-2.5 text-center text-gray-500">{row.paceResult.planned}</td>
-                    <td className="px-4 py-2.5 text-center">
-                      {row.paceResult.planned > 0 ? (
-                        <span className={`font-bold ${row.paceResult.status === 'behind' ? 'text-red-600' : row.paceResult.status === 'slow' ? 'text-yellow-600' : row.paceResult.status === 'fast' ? 'text-blue-600' : 'text-green-600'}`}>
-                          {row.paceResult.percent}%
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <PaceStatusBadge status={row.paceResult.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

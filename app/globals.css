@@ -3,83 +3,159 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
+/* ── Unacademy brand colours ──────────────────────────── */
+:root {
+  --ua-blue:   #1A73E8;
+  --ua-green:  #43A047;
+  --ua-dark:   #08090A;
+  --ua-teal:   #08BD80;
+  --ua-purple: #7C3AED;
+
+  /* shadcn tokens */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --radius: 0.625rem;
 }
 
+/* ── Base font size ───────────────────────────────────── */
 @layer base {
-  :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --destructive-foreground: oklch(0.985 0 0);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
-  }
-  .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --destructive-foreground: oklch(0.985 0 0);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
-  }
-  * {
-    @apply border-border;
-  }
+  html { font-size: 16px; }
+  * { @apply border-border; }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    font-size: 1rem;
+    background: #ede9f9;
+    min-height: 100vh;
   }
+  h1 { font-size: 1.875rem; font-weight: 800; }
+  h2 { font-size: 1.5rem;   font-weight: 700; }
+  h3 { font-size: 1.25rem;  font-weight: 700; }
+  p  { font-size: 0.9375rem; }
 }
+
+/* ── Animations ────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes float1 {
+  0%, 100% { transform: translate(0, 0)    scale(1); }
+  33%       { transform: translate(30px, -25px) scale(1.04); }
+  66%       { transform: translate(-20px, 18px) scale(0.97); }
+}
+@keyframes float2 {
+  0%, 100% { transform: translate(0, 0)    scale(1); }
+  40%       { transform: translate(-35px, 20px) scale(1.05); }
+  70%       { transform: translate(25px, -18px) scale(0.96); }
+}
+@keyframes float3 {
+  0%, 100% { transform: translate(0, 0)    scale(1); }
+  50%       { transform: translate(20px, 30px) scale(1.03); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
+.animate-fade-up     { animation: fadeUp    0.4s ease both; }
+.animate-fade-in     { animation: fadeIn    0.25s ease both; }
+.animate-scale-in    { animation: scaleIn   0.3s  ease both; }
+.animate-slide-right { animation: slideRight 0.3s  ease both; }
+
+/* ── Staggered children ───────────────────────────────── */
+.stagger > *:nth-child(1) { animation: fadeUp 0.4s ease both 0ms; }
+.stagger > *:nth-child(2) { animation: fadeUp 0.4s ease both 70ms; }
+.stagger > *:nth-child(3) { animation: fadeUp 0.4s ease both 140ms; }
+.stagger > *:nth-child(4) { animation: fadeUp 0.4s ease both 210ms; }
+.stagger > *:nth-child(5) { animation: fadeUp 0.4s ease both 280ms; }
+.stagger > *:nth-child(6) { animation: fadeUp 0.4s ease both 350ms; }
+.stagger > *:nth-child(7) { animation: fadeUp 0.4s ease both 420ms; }
+.stagger > *:nth-child(8) { animation: fadeUp 0.4s ease both 490ms; }
+
+/* ── Card hover lift ──────────────────────────────────── */
+.card-lift {
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+.card-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(124, 58, 237, 0.10), 0 4px 12px rgba(0,0,0,0.06);
+  border-color: rgba(124, 58, 237, 0.2) !important;
+}
+
+/* ── Gradient card accent ─────────────────────────────── */
+.card-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
+  border: 1px solid rgba(124,58,237,0.12);
+}
+.card-gradient-blue {
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  border: 1px solid rgba(26,115,232,0.12);
+}
+.card-gradient-green {
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+  border: 1px solid rgba(67,160,71,0.12);
+}
+
+/* ── Shimmer button ───────────────────────────────────── */
+.btn-ua {
+  background: linear-gradient(90deg, #1A73E8 0%, #7C3AED 50%, #1A73E8 100%);
+  background-size: 200% auto;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.9375rem;
+  transition: background-position 0.4s ease, transform 0.1s;
+}
+.btn-ua:hover  { background-position: right center; }
+.btn-ua:active { transform: scale(0.98); }
+
+/* (background blobs are rendered as DOM divs in layouts) */
+
+/* ── Nav glow strip ───────────────────────────────────── */
+.nav-glow {
+  box-shadow: 0 1px 0 rgba(124,58,237,0.4), 0 4px 24px rgba(0,0,0,0.4);
+}
+
+/* ── Scrollbar hide ───────────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* ── Text balance ─────────────────────────────────────── */
+.text-balance { text-wrap: balance; }

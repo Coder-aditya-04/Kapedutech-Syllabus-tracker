@@ -2,10 +2,18 @@ import { createClient } from '@/lib/supabase/server'
 import { PaceStatusBadge } from '@/components/shared/PaceStatusBadge'
 import { CenterBadge } from '@/components/shared/CenterBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
-import { Card, CardContent } from '@/components/ui/card'
 import { calculatePace, MONTHS } from '@/lib/pace'
+import type { PaceStatus } from '@/lib/supabase/types'
 
 export const revalidate = 30
+
+const ROW_STYLE: Record<PaceStatus, string> = {
+  behind:   'bg-red-50/70 hover:bg-red-50',
+  slow:     'bg-yellow-50/60 hover:bg-yellow-50',
+  on_track: 'bg-green-50/50 hover:bg-green-50',
+  fast:     'bg-blue-50/50 hover:bg-blue-50',
+  no_entry: 'hover:bg-gray-50/60',
+}
 
 export default async function AllLogsPage() {
   const supabase = await createClient()
@@ -19,80 +27,97 @@ export default async function AllLogsPage() {
 
   const { data: logs } = await supabase
     .from('weekly_logs')
-    .select(`
-      id, subject, chapter_name, lectures_this_week, week_number, is_holiday,
-      notes, submitted_at,
-      user_profiles(name, employee_id),
-      batches(name, batch_type, class_level, centers(name))
-    `)
+    .select(`id, subject, chapter_name, lectures_this_week, week_number, is_holiday, notes, submitted_at,
+      user_profiles(name, employee_id), batches(name, batch_type, class_level, centers(name))`)
     .order('submitted_at', { ascending: false })
     .limit(200) as { data: LogRow[] | null }
 
+  const allLogs = logs ?? []
+
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">All Submissions</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{logs?.length ?? 0} recent entries</p>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">📋 All Submissions</h1>
+          <p className="text-gray-500 text-base mt-1">
+            <span className="font-semibold text-violet-600">{allLogs.length}</span> recent entries
+          </p>
+        </div>
+        {/* Legend */}
+        <div className="hidden md:flex items-center gap-3 text-xs font-semibold">
+          {[
+            { label: 'Behind',   bg: 'bg-red-100',    text: 'text-red-700' },
+            { label: 'On Track', bg: 'bg-green-100',  text: 'text-green-700' },
+            { label: 'Slow',     bg: 'bg-yellow-100', text: 'text-yellow-700' },
+            { label: 'Fast',     bg: 'bg-blue-100',   text: 'text-blue-700' },
+          ].map(l => (
+            <span key={l.label} className={`px-2.5 py-1 rounded-full ${l.bg} ${l.text}`}>{l.label}</span>
+          ))}
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50 text-left">
-                  <th className="px-4 py-3 font-semibold text-gray-600">Teacher</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Center</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Batch</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Subject</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Chapter</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 text-center">Wk</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 text-center">Lec</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Pace</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(logs ?? []).map((log, i) => {
-                  const batch = log.batches as { name: string; batch_type: string; class_level: string; centers: { name: string } }
-                  const teacher = log.user_profiles as { name: string; employee_id: string | null }
-                  const batchBase = batch.name.replace(/\s*[–-]\s*\d+.*$/, '').trim()
-                  const mIdx = new Date(log.submitted_at).getMonth()
-                  const mKey = MONTHS[mIdx]
-                  const pace = log.is_holiday ? null : calculatePace(batchBase, log.subject, mKey, log.lectures_this_week)
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg,#fafafa,#f5f3ff)' }}>
+          <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Latest {allLogs.length} submissions — rows coloured by pace</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/40 text-left">
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Teacher</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Center</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Batch</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Subject</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Chapter</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Wk</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Lec</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Pace</th>
+                <th className="px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wide">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allLogs.map(log => {
+                const batch   = log.batches as { name: string; batch_type: string; class_level: string; centers: { name: string } }
+                const teacher = log.user_profiles as { name: string; employee_id: string | null }
+                const batchBase = batch?.name.replace(/\s*[–-]\s*\d+.*$/, '').trim() ?? ''
+                const mIdx  = new Date(log.submitted_at).getMonth()
+                const mKey  = MONTHS[mIdx]
+                const pace  = log.is_holiday ? null : calculatePace(batchBase, log.subject, mKey, log.lectures_this_week)
+                const rowClass = log.is_holiday
+                  ? 'bg-orange-50/60 hover:bg-orange-50'
+                  : ROW_STYLE[pace?.status ?? 'no_entry']
 
-                  return (
-                    <tr key={log.id} className={`border-b ${i % 2 === 1 ? 'bg-gray-50/50' : ''} hover:bg-gray-50`}>
-                      <td className="px-4 py-2.5">
-                        <div className="font-semibold text-gray-900">{teacher?.name}</div>
-                        {teacher?.employee_id && <div className="text-[10px] text-gray-400">{teacher.employee_id}</div>}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <CenterBadge name={batch.centers.name} />
-                      </td>
-                      <td className="px-4 py-2.5 font-medium text-xs text-gray-700">{batch.name}</td>
-                      <td className="px-4 py-2.5">
-                        {log.is_holiday ? <span className="text-orange-600 text-xs font-semibold">🟠 Holiday</span> : <SubjectBadge subject={log.subject} />}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-600 max-w-[200px] truncate">{log.chapter_name}</td>
-                      <td className="px-4 py-2.5 text-center font-bold text-gray-700">{log.week_number}</td>
-                      <td className="px-4 py-2.5 text-center font-bold">{log.is_holiday ? '—' : log.lectures_this_week}</td>
-                      <td className="px-4 py-2.5">
-                        {pace && <PaceStatusBadge status={pace.status} />}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-400 whitespace-nowrap">
-                        {new Date(log.submitted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' })}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                return (
+                  <tr key={log.id} className={`border-b border-gray-100 transition-colors ${rowClass}`}>
+                    <td className="px-5 py-3.5">
+                      <div className="font-bold text-gray-900">{teacher?.name}</div>
+                      {teacher?.employee_id && <div className="text-xs text-gray-400">{teacher.employee_id}</div>}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {batch?.centers?.name && <CenterBadge name={batch.centers.name} />}
+                    </td>
+                    <td className="px-5 py-3.5 font-semibold text-sm text-gray-700">{batch?.name}</td>
+                    <td className="px-5 py-3.5">
+                      {log.is_holiday
+                        ? <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">🟠 Holiday</span>
+                        : <SubjectBadge subject={log.subject} />}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-gray-700 max-w-[200px] truncate font-medium">{log.chapter_name}</td>
+                    <td className="px-5 py-3.5 text-center font-black text-gray-700">{log.week_number}</td>
+                    <td className="px-5 py-3.5 text-center font-black text-gray-900 text-base">{log.is_holiday ? '—' : log.lectures_this_week}</td>
+                    <td className="px-5 py-3.5">
+                      {pace && <PaceStatusBadge status={pace.status} />}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-gray-500 font-bold whitespace-nowrap">
+                      {new Date(log.submitted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' })}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

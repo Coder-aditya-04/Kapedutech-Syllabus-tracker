@@ -2,10 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CenterBadge } from '@/components/shared/CenterBadge'
 
 interface Holiday {
@@ -26,9 +22,7 @@ export default function HolidaysPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    loadHolidays()
-  }, [])
+  useEffect(() => { loadHolidays() }, [])
 
   async function loadHolidays() {
     const { data } = await supabase
@@ -41,18 +35,14 @@ export default function HolidaysPage() {
 
   async function addHoliday(e: React.FormEvent) {
     e.preventDefault()
-    setSaving(true)
-    setError('')
+    setSaving(true); setError('')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: dbError } = await (supabase.from('holidays') as any).insert({
-      holiday_date: date,
-      holiday_name: name,
-      affects_all_centers: allCenters,
+      holiday_date: date, holiday_name: name, affects_all_centers: allCenters,
     })
     setSaving(false)
     if (dbError) { setError(dbError.message); return }
-    setDate('')
-    setName('')
+    setDate(''); setName('')
     loadHolidays()
   }
 
@@ -63,77 +53,90 @@ export default function HolidaysPage() {
 
   return (
     <div className="max-w-2xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Holiday Planner</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Mark holidays — teachers see these when submitting logs</p>
+      <div className="mb-8">
+        <h1 className="text-3xl font-black text-gray-900 tracking-tight">🗓️ Holiday Planner</h1>
+        <p className="text-gray-500 text-base mt-1">Mark holidays — teachers see these when submitting logs</p>
       </div>
 
       {/* Add holiday form */}
-      <Card className="mb-6">
-        <CardHeader><CardTitle className="text-base">Add Holiday</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={addHoliday} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Date</Label>
-                <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-6 card-lift">
+        <div className="px-6 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' }}>
+          <h2 className="text-base font-black text-gray-900">➕ Add Holiday</h2>
+        </div>
+        <div className="p-6">
+          <form onSubmit={addHoliday} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Date</label>
+                <input
+                  type="date" value={date} onChange={e => setDate(e.target.value)} required
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
               </div>
-              <div className="space-y-1">
-                <Label>Holiday Name</Label>
-                <Input value={name} onChange={e => setName(e.target.value)} placeholder="Diwali, Independence Day…" required />
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Holiday Name</label>
+                <input
+                  value={name} onChange={e => setName(e.target.value)} placeholder="Diwali, Independence Day…" required
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="allCenters" checked={allCenters} onChange={e => setAllCenters(e.target.checked)} className="w-4 h-4" />
-              <Label htmlFor="allCenters" className="cursor-pointer font-normal">Affects both centers</Label>
-            </div>
-            {error && <div className="text-red-600 text-sm">{error}</div>}
-            <Button type="submit" disabled={saving} style={{ background: '#6929C4' }}>
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={allCenters} onChange={e => setAllCenters(e.target.checked)} className="w-4 h-4 accent-violet-600" />
+              <span className="text-sm font-semibold text-gray-700">Affects both centers</span>
+            </label>
+            {error && <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-2">{error}</div>}
+            <button
+              type="submit" disabled={saving}
+              className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg,#7C3AED,#1A73E8)' }}
+            >
               {saving ? 'Adding…' : 'Add Holiday'}
-            </Button>
+            </button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Holiday list */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Upcoming & Recent Holidays</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>
-          ) : holidays.length === 0 ? (
-            <div className="p-6 text-center text-gray-400 text-sm">No holidays added yet</div>
-          ) : (
-            <div>
-              {holidays.map(h => (
-                <div key={h.id} className="flex items-center justify-between px-4 py-3 border-b last:border-0 hover:bg-gray-50">
-                  <div>
-                    <div className="font-semibold text-sm">{h.holiday_name}</div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-gray-500">
-                        {new Date(h.holiday_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </span>
-                      {h.affects_all_centers ? (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">Both Centers</span>
-                      ) : h.centers ? (
-                        <CenterBadge name={h.centers.name} />
-                      ) : null}
-                    </div>
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg,#fafafa,#f1f5f9)' }}>
+          <h2 className="text-base font-black text-gray-900">📅 Upcoming & Recent Holidays</h2>
+        </div>
+        {loading ? (
+          <div className="p-8 text-center text-gray-400 font-medium">Loading…</div>
+        ) : holidays.length === 0 ? (
+          <div className="p-10 text-center">
+            <div className="text-4xl mb-3">📅</div>
+            <p className="text-gray-500 font-semibold">No holidays added yet</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {holidays.map(h => (
+              <div key={h.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50/60 transition-colors">
+                <div>
+                  <div className="font-bold text-gray-900">{h.holiday_name}</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-sm text-gray-500 font-semibold">
+                      {new Date(h.holiday_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                    {h.affects_all_centers ? (
+                      <span className="text-xs bg-violet-100 text-violet-700 px-2.5 py-0.5 rounded-full font-bold">Both Centers</span>
+                    ) : h.centers ? (
+                      <CenterBadge name={h.centers.name} />
+                    ) : null}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteHoliday(h.id)}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                  >
-                    Remove
-                  </Button>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <button
+                  onClick={() => deleteHoliday(h.id)}
+                  className="text-sm font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

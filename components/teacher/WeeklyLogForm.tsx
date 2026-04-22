@@ -2,463 +2,531 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { calculatePace, getCurrentMonthKey, PLAN } from '@/lib/pace'
-import { SUBJECTS_BY_BATCH } from '@/lib/constants'
-import type { Subject } from '@/lib/supabase/types'
+import Image from 'next/image'
+import Link from 'next/link'
 
-interface TeacherProfile {
-  id: string
-  name: string
-  center_id: string | null
-  centers: { name: string } | null
-  teacher_batch_assignments: Array<{
-    id: string
-    subject: Subject
-    batch_id: string
-    batches: { id: string; name: string; batch_type: string; class_level: string }
-  }>
+const ACADEMIC_START = new Date(2026, 4, 1)
+
+function dateToWeek(dateStr: string): number {
+  if (!dateStr) return 1
+  const d = new Date(dateStr)
+  return Math.max(1, Math.floor((d.getTime() - ACADEMIC_START.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1)
 }
 
+function todayStr(): string {
+  return new Date().toISOString().split('T')[0]!
+}
+
+interface Props { userId: string; userRole: string; userName: string }
+
+interface Assignment {
+  id: string; subject: string
+  batches: { id: string; name: string; batch_type: string; class_level: string; centers: { name: string } | null }
+}
 interface SubmitResult {
-  teacher: string
-  center: string
-  batch: string
-  subject: string
-  chapter: string
-  lectures: number
-  weekNo: number
-  isHoliday: boolean
+  teacher: string; center: string; batch: string; subject: string
+  chapter: string; lectures: number; weekNo: number; isHoliday: boolean
+  isChapterComplete: boolean; logDate: string
 }
 
-export default function WeeklyLogForm({ userId }: { userId: string }) {
+const SUBJECT_COLORS: Record<string, string> = {
+  Physics:     '#1A73E8',
+  Chemistry:   '#7C3AED',
+  Botany:      '#43A047',
+  Zoology:     '#0891b2',
+  Mathematics: '#f59e0b',
+}
+
+export default function WeeklyLogForm({ userId, userRole, userName }: Props) {
   const supabase = createClient()
+  const isAdmin = userRole === 'academic_head' || userRole === 'director'
 
-  const [profile, setProfile] = useState<TeacherProfile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [profileId, setProfileId]     = useState('')
+  const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [loading, setLoading]         = useState(true)
 
-  // Form state
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState('')
-  const [weekNo, setWeekNo] = useState(1)
-  const [isHoliday, setIsHoliday] = useState(false)
-  const [subject, setSubject] = useState<Subject | ''>('')
-  const [chapter, setChapter] = useState('')
+  const [selectedId, setSelectedId]   = useState('')
+  const [logDate, setLogDate]         = useState(todayStr())
+  const weekNo                        = dateToWeek(logDate)
+  const [isHoliday, setIsHoliday]     = useState(false)
+  const [subject, setSubject]         = useState('')
+  const [chapter, setChapter]         = useState('')
   const [chapterInput, setChapterInput] = useState('')
-  const [chapters, setChapters] = useState<string[]>([])
+  const [chapters, setChapters]       = useState<string[]>([])
   const [chaptersLoading, setChaptersLoading] = useState(false)
-  const [subtopics, setSubtopics] = useState('')
-  const [lectures, setLectures] = useState(0)
-  const [notes, setNotes] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState<SubmitResult | null>(null)
-  const [progress, setProgress] = useState(4)
+  const [subtopics, setSubtopics]     = useState('')
+  const [lectures, setLectures]       = useState(0)
+  const [isChapterComplete, setIsChapterComplete] = useState(false)
+  const [notes, setNotes]             = useState('')
+  const [submitting, setSubmitting]   = useState(false)
+  const [error, setError]             = useState('')
+  const [result, setResult]           = useState<SubmitResult | null>(null)
 
-  // Derived state
-  const selectedAssignment = profile?.teacher_batch_assignments.find(a => a.id === selectedAssignmentId)
-  const currentBatch = selectedAssignment?.batches
-  const batchSubjects = currentBatch ? SUBJECTS_BY_BATCH[currentBatch.batch_type] ?? [] : []
+  // Chapter-wise tracking
+  const [chapterPlan, setChapterPlan] = useState(0)
+  const [chapterDone, setChapterDone] = useState(0)
 
-  // Academic week calculation
-  useEffect(() => {
-    const start = new Date(2026, 4, 1)
-    const wk = Math.max(1, Math.floor((Date.now() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1)
-    setWeekNo(wk)
-  }, [])
+  const currentAssignment = assignments.find(a => a.id === selectedId)
+  const currentBatch      = currentAssignment?.batches ?? null
+  const batchSubjects     = currentBatch
+    ? assignments.filter(a => a.batches.id === currentBatch.id).map(a => a.subject)
+    : []
 
-  // Load teacher profile + assignments
+  // Load profile + assignments (all roles use their own assignments)
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('user_profiles')
-        .select(`
-          id, name, center_id,
-          centers(name),
-          teacher_batch_assignments(
-            id, subject, batch_id,
-            batches(id, name, batch_type, class_level)
-          )
-        `)
-        .eq('user_id', userId)
-        .eq('teacher_batch_assignments.is_active', true)
-        .single()
+      const { data: prof } = await supabase
+        .from('user_profiles').select('id, name').eq('user_id', userId).single()
+      const pid = (prof as { id: string } | null)?.id ?? ''
+      setProfileId(pid)
 
-      setProfile(data as unknown as TeacherProfile)
+      if (pid) {
+        const { data } = await supabase
+          .from('teacher_batch_assignments')
+          .select('id, subject, batches(id, name, batch_type, class_level, centers(name))')
+          .eq('teacher_id', pid).eq('is_active', true)
+        setAssignments((data ?? []) as unknown as Assignment[])
+      }
       setLoading(false)
     }
     load()
-  }, [userId, supabase])
+  }, [userId]) // eslint-disable-line
 
-  // Load chapters when subject + assignment selected
+  // Load chapters from lecture_plans when subject + batch changes
   useEffect(() => {
-    if (!subject || !currentBatch) {
-      setChapters([])
-      setChapter('')
-      return
-    }
-    setChaptersLoading(true)
-    setChapter('')
+    if (!subject || !currentBatch) { setChapters([]); setChapter(''); return }
+    setChaptersLoading(true); setChapter(''); setChapterPlan(0); setChapterDone(0)
     async function fetchChapters() {
-      const { data: subjects } = await supabase
-        .from('subjects')
-        .select('id')
-        .eq('name', subject)
-        .single()
-      if (!subjects) { setChaptersLoading(false); return }
-
+      const batchBase = currentBatch!.name.replace(/\s*[–-]\s*\d+.*$/, '').trim()
       const { data } = await supabase
-        .from('syllabus_topics')
-        .select('chapter_name')
-        .eq('subject_id', subjects.id)
+        .from('lecture_plans')
+        .select('topic_name')
+        .eq('batch_type', batchBase)
         .eq('class_level', currentBatch!.class_level)
-        .order('chapter_order')
-      const unique = Array.from(new Set((data ?? []).map(r => r.chapter_name)))
+        .eq('subject', subject)
+        .order('month_name')
+      const seen = new Set<string>(); const unique: string[] = []
+      for (const r of data ?? []) {
+        if (!seen.has(r.topic_name)) { seen.add(r.topic_name); unique.push(r.topic_name) }
+      }
       setChapters(unique)
       setChaptersLoading(false)
     }
     fetchChapters()
-  }, [subject, currentBatch, supabase])
+  }, [subject, currentBatch]) // eslint-disable-line
 
-  // Update progress bar
-  const updateProgress = useCallback(() => {
-    if (isHoliday) { setProgress(selectedAssignmentId ? 100 : 30); return }
-    let filled = 0
-    if (selectedAssignmentId) filled++
-    if (subject) filled++
-    const ch = chapter === '__other__' ? chapterInput : chapter
-    if (ch) filled++
-    if (lectures > 0) filled++
-    setProgress(Math.round((filled / 4) * 96) + 4)
-  }, [selectedAssignmentId, isHoliday, subject, chapter, chapterInput, lectures])
+  // Load chapter-wise plan + cumulative done when chapter is selected
+  const loadChapterStats = useCallback(async (chapterName: string) => {
+    if (!chapterName || chapterName === '__other__' || !currentBatch || !profileId) {
+      setChapterPlan(0); setChapterDone(0); return
+    }
+    const batchBase = currentBatch.name.replace(/\s*[–-]\s*\d+.*$/, '').trim()
+    const [planRes, doneRes] = await Promise.all([
+      supabase.from('lecture_plans')
+        .select('planned_lectures')
+        .eq('batch_type', batchBase)
+        .eq('class_level', currentBatch.class_level)
+        .eq('subject', subject)
+        .eq('topic_name', chapterName),
+      supabase.from('weekly_logs')
+        .select('lectures_this_week')
+        .eq('teacher_id', profileId)
+        .eq('batch_id', currentBatch.id)
+        .eq('subject', subject)
+        .eq('chapter_name', chapterName)
+        .eq('is_holiday', false),
+    ])
+    const planned = (planRes.data ?? []).reduce((s, r) => s + r.planned_lectures, 0)
+    const done    = (doneRes.data ?? []).reduce((s, r) => s + r.lectures_this_week, 0)
+    setChapterPlan(planned)
+    setChapterDone(done)
+  }, [currentBatch, profileId, subject]) // eslint-disable-line
 
-  useEffect(() => { updateProgress() }, [updateProgress])
+  useEffect(() => { loadChapterStats(chapter) }, [chapter, loadChapterStats])
 
   async function handleSubmit() {
-    if (!profile || !selectedAssignment) { setError('Please select your batch assignment.'); return }
+    if (!profileId) { setError('Profile not found.'); return }
+    if (!selectedId) { setError('Please select a batch.'); return }
     if (!isHoliday) {
       if (!subject) { setError('Please select a subject.'); return }
       const ch = chapter === '__other__' ? chapterInput.trim() : chapter
       if (!ch) { setError('Please enter the chapter name.'); return }
-      if (lectures === 0) { setError('Please enter how many lectures you took.'); return }
+      if (lectures === 0) { setError('Please enter number of lectures.'); return }
     }
-    setError('')
-    setSubmitting(true)
-
-    const centerName = profile.centers?.name ?? ''
+    setError(''); setSubmitting(true)
     const ch = chapter === '__other__' ? chapterInput.trim() : chapter
+    const finalNotes = [
+      isChapterComplete ? '✅ Chapter completed.' : '',
+      notes,
+    ].filter(Boolean).join(' ').trim() || null
 
     const { error: dbError } = await supabase.from('weekly_logs').insert({
-      teacher_id: profile.id,
-      batch_id: currentBatch!.id,
-      subject: (subject || 'Physics') as Subject,
+      teacher_id: profileId, batch_id: currentBatch!.id,
+      subject: (subject || 'Physics') as never,
       chapter_name: ch || 'Holiday',
       subtopics_covered: subtopics || null,
       lectures_this_week: isHoliday ? 0 : lectures,
-      week_number: weekNo,
-      notes: notes || null,
-      is_holiday: isHoliday,
+      week_number: weekNo, notes: finalNotes, is_holiday: isHoliday,
     })
-
     setSubmitting(false)
     if (dbError) { setError(dbError.message); return }
-
     setResult({
-      teacher: profile.name,
-      center: centerName,
-      batch: currentBatch!.name,
-      subject: subject || '',
-      chapter: ch || 'Holiday',
-      lectures,
-      weekNo,
-      isHoliday,
+      teacher: userName, center: currentBatch!.centers?.name ?? '',
+      batch: currentBatch!.name, subject, chapter: ch || 'Holiday',
+      lectures, weekNo, isHoliday, isChapterComplete, logDate,
     })
   }
 
   function resetForm() {
-    setResult(null)
-    setSelectedAssignmentId('')
-    setSubject('')
-    setChapter('')
-    setChapterInput('')
-    setSubtopics('')
-    setLectures(0)
-    setNotes('')
-    setIsHoliday(false)
-    setError('')
+    setResult(null); setSelectedId(''); setSubject(''); setChapter('')
+    setChapterInput(''); setSubtopics(''); setLectures(0); setNotes('')
+    setIsHoliday(false); setIsChapterComplete(false); setError('')
+    setLogDate(todayStr()); setChapterPlan(0); setChapterDone(0)
   }
 
-  // Pace calculation (instant, client-side)
-  const monthKey = getCurrentMonthKey()
-  const batchBase = currentBatch?.name.replace(/\s*[–-]\s*\d+.*$/, '').trim() ?? ''
-  const plannedThisMonth = subject ? (PLAN[batchBase]?.[subject]?.[monthKey] ?? 0) : 0
-  const paceResult = subject && lectures > 0 ? calculatePace(batchBase, subject, monthKey, lectures) : null
+  const accentColor = subject ? (SUBJECT_COLORS[subject] ?? '#7C3AED') : '#7C3AED'
+  const ch          = chapter === '__other__' ? chapterInput.trim() : chapter
+  const afterToday  = chapterDone + lectures
+  const chPercent   = chapterPlan > 0 ? Math.round((afterToday / chapterPlan) * 100) : 0
+  const backHref    = isAdmin ? '/head/dashboard' : '/teacher/history'
 
-  if (loading) {
-    return (
-      <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-        <div style={{ background: '#08090A', height: 56, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10 }}>
-          <div style={{ width: 34, height: 34, background: '#08BD80', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 17 }}>U</div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Unacademy Nashik</div>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,.45)', textTransform: 'uppercase', letterSpacing: .5 }}>Weekly Lecture Log</div>
-          </div>
+  // ── Loading ──
+  if (loading) return (
+    <div className="min-h-screen" style={{ background: '#ede9f9' }}>
+      <div className="h-[72px]" style={{ background: '#08090A' }} />
+      <div className="max-w-lg mx-auto p-4 space-y-3 pt-8">
+        {[1,2,3].map(i => <div key={i} className="h-24 bg-white/70 rounded-2xl animate-pulse" />)}
+      </div>
+    </div>
+  )
+
+  // ── Success ──
+  if (result) return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: '#ede9f9' }}>
+      <div className="max-w-md w-full animate-scale-in">
+        <div className="text-center mb-6">
+          <div className="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center text-4xl shadow-lg"
+            style={{ background: 'linear-gradient(135deg,#43A047,#1A73E8)' }}>✓</div>
+          <h2 className="text-2xl font-black text-gray-900">Log Submitted!</h2>
+          <p className="text-sm text-gray-500 mt-1">Week {result.weekNo} entry saved</p>
         </div>
-        <div style={{ padding: 12, maxWidth: 440, margin: '0 auto' }}>
-          {[1,2,3].map(i => (
-            <div key={i} style={{ height: 80, background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)', backgroundSize: '200% 100%', borderRadius: 12, marginBottom: 9, animation: 'skeleton 1.2s infinite' }} />
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4 shadow-sm">
+          {(result.isHoliday
+            ? [['Teacher', result.teacher],['Batch', result.batch],['Date', result.logDate],['Week', `Week ${result.weekNo}`],['Status', '🟠 Holiday']]
+            : [
+                ['Teacher', result.teacher],['Batch', result.batch],['Subject', result.subject],
+                ['Chapter', result.chapter.replace(/^\[[^\]]*\]\s*/, '')],
+                ['Lectures', String(result.lectures)],
+                ...(result.isChapterComplete ? [['Chapter Done', '✅ Completed']] : []),
+                ['Date', result.logDate],['Week', `Week ${result.weekNo}`],
+              ]
+          ).map(([k,v]) => (
+            <div key={k} className="flex justify-between text-sm py-2 border-b border-gray-100 last:border-0">
+              <span className="text-gray-400">{k}</span>
+              <span className="font-semibold text-gray-900">{v}</span>
+            </div>
           ))}
         </div>
-      </div>
-    )
-  }
-
-  // Success screen
-  if (result) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#f0f0f5', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-        <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
-          <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg,#08BD80,#6929C4)', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>✓</div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Log Submitted!</h2>
-          <p style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>Your entry is saved. Academic head will track your progress.</p>
-          <div style={{ background: '#fff', borderRadius: 11, padding: 16, marginBottom: 16, textAlign: 'left', boxShadow: '0 1px 3px rgba(0,0,0,.06)' }}>
-            {[
-              ['Teacher', result.teacher],
-              ['Center', result.center],
-              ['Batch', result.batch],
-              ...(result.isHoliday ? [['Status', 'Holiday / No lecture']] : [
-                ['Subject', result.subject],
-                ['Chapter', result.chapter],
-                ['Lectures', String(result.lectures)],
-              ]),
-              ['Week', `Week ${result.weekNo}`],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #e0e0e0', fontSize: 12 }}>
-                <span style={{ color: '#999', fontWeight: 600 }}>{k}</span>
-                <span style={{ fontWeight: 700, textAlign: 'right', maxWidth: '60%' }}>{v}</span>
-              </div>
-            ))}
-          </div>
-          <button onClick={resetForm} style={{ width: '100%', padding: 14, background: '#08090A', color: '#fff', border: 'none', borderRadius: 11, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-            + Log Another Subject
+        <div className="flex gap-3">
+          <button onClick={resetForm} className="flex-1 py-3.5 text-white text-sm font-bold rounded-2xl shadow-md"
+            style={{ background: 'linear-gradient(135deg,#7C3AED,#1A73E8)' }}>
+            ✏️ Log Another
           </button>
+          <Link href={backHref} className="flex-1 py-3.5 bg-gray-900 text-white text-sm font-bold rounded-2xl flex items-center justify-center hover:bg-gray-800">
+            ← Back
+          </Link>
         </div>
       </div>
-    )
-  }
+    </div>
+  )
 
+  // ── Form ──
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f0f5', paddingBottom: 24 }}>
-      {/* Top bar */}
-      <div style={{ background: '#08090A', height: 56, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10, position: 'sticky', top: 0, zIndex: 99, boxShadow: '0 2px 8px rgba(0,0,0,.3)' }}>
-        <div style={{ width: 34, height: 34, background: '#08BD80', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 17, flexShrink: 0 }}>U</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Unacademy Nashik</div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,.45)', textTransform: 'uppercase', letterSpacing: .5 }}>Weekly Lecture Log</div>
-        </div>
-        <div style={{ background: '#6929C4', color: '#fff', fontSize: 10, fontWeight: 700, padding: '4px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>
-          Week {weekNo}
-        </div>
+    <div className="min-h-screen pb-12 relative" style={{ background: '#ede9f9' }}>
+
+      {/* Floating blobs */}
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '-80px', left: '-60px', width: '400px', height: '400px', borderRadius: '50%', background: 'rgba(180,155,240,0.45)', filter: 'blur(18px)', animation: 'float1 20s ease-in-out infinite' }} />
+        <div style={{ position: 'absolute', bottom: '-60px', right: '-40px', width: '360px', height: '360px', borderRadius: '50%', background: 'rgba(147,197,253,0.40)', filter: 'blur(18px)', animation: 'float2 26s ease-in-out infinite' }} />
+        <div style={{ position: 'absolute', top: '40%', left: '50%', width: '300px', height: '300px', borderRadius: '50%', background: 'rgba(216,180,254,0.35)', filter: 'blur(16px)', animation: 'float3 32s ease-in-out infinite' }} />
       </div>
 
-      {/* Progress bar */}
-      <div style={{ height: 3, background: 'rgba(0,0,0,.1)' }}>
-        <div style={{ height: '100%', background: 'linear-gradient(90deg,#08BD80,#6929C4)', width: `${progress}%`, transition: 'width .35s' }} />
-      </div>
-
-      <div style={{ padding: 12, maxWidth: 440, margin: '0 auto' }}>
-        {/* Section label */}
-        <div style={{ fontSize: 9, fontWeight: 800, color: '#999', textTransform: 'uppercase', letterSpacing: .8, margin: '16px 0 7px 2px' }}>Your identity</div>
-
-        {/* Batch assignment selector */}
-        <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 9, boxShadow: '0 1px 3px rgba(0,0,0,.06)', border: '1.5px solid #6929C4' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-            Your Batch &amp; Subject
-            <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: '#fff0f0', color: '#c0392b', border: '1px solid #ffd0d0', textTransform: 'uppercase' }}>required</span>
+      {/* Header */}
+      <div className="sticky top-0 z-10 nav-glow" style={{ background: 'linear-gradient(90deg,#08090A 0%,#0f0a1e 50%,#08090A 100%)' }}>
+        <div style={{ height: 3, background: 'linear-gradient(90deg,transparent,#7C3AED 20%,#1A73E8 50%,#7C3AED 80%,transparent)' }} />
+        <div className="max-w-lg mx-auto px-5 h-16 flex items-center gap-4">
+          <Link href={backHref} className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
+            ←
+          </Link>
+          <Image src="/unacademy-logo.png" alt="Unacademy" width={120} height={34} className="brightness-0 invert" priority />
+          <div className="flex-1 min-w-0 text-right">
+            <div className="text-xs text-gray-400 font-semibold truncate">{userName}</div>
           </div>
-          <select
-            value={selectedAssignmentId}
-            onChange={e => { setSelectedAssignmentId(e.target.value); setSubject(''); setChapter('') }}
-            style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 14, fontWeight: 500, background: '#fff', appearance: 'none' }}
+          <div className="shrink-0 px-3 py-1.5 rounded-full text-xs font-black text-white"
+            style={{ background: 'linear-gradient(135deg,#7C3AED,#1A73E8)' }}>
+            Week {weekNo}
+          </div>
+        </div>
+      </div>
+
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-6 space-y-4 animate-fade-up">
+
+        {/* ── Date ── */}
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-5">
+          <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">📅 Log Date</label>
+          <input type="date" value={logDate} max={todayStr()}
+            onChange={e => setLogDate(e.target.value)}
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-400"
+          />
+          <p className="text-xs text-gray-400 mt-2 font-medium">Academic Week {weekNo} · year starts May 2026</p>
+        </div>
+
+        {/* ── Batch ── */}
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-5">
+          <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">
+            🏫 Batch <span className="text-red-400 normal-case font-normal ml-1">required</span>
+          </label>
+          <select value={selectedId}
+            onChange={e => { setSelectedId(e.target.value); setSubject(''); setChapter(''); setChapterPlan(0); setChapterDone(0) }}
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none bg-white"
           >
             <option value="">— Select your batch —</option>
-            {profile?.teacher_batch_assignments.map(a => (
-              <option key={a.id} value={a.id}>
-                {a.batches.name} · {a.subject} ({a.batches.class_level === '11' ? 'Class 11' : 'Class 12'})
+            {/* Group unique batches from assignments */}
+            {Array.from(new Map(assignments.map(a => [a.batches.id, a])).values()).map(a => (
+              <option key={a.batches.id} value={a.id}>
+                {a.batches.name} · {a.batches.centers?.name} · Class {a.batches.class_level}
               </option>
             ))}
           </select>
-          {selectedAssignment && (
-            <div style={{ background: '#f0eaff', borderRadius: 8, padding: '9px 12px', marginTop: 8, border: '1px solid rgba(105,41,196,.15)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#6929C4' }}>{profile?.name}</div>
-              <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>
-                {profile?.centers?.name} · {currentBatch?.name} · {selectedAssignment.subject}
-              </div>
+          {assignments.length === 0 && (
+            <p className="text-xs text-amber-600 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              ⚠️ No active batch assignments. Ask your academic head to assign you to a batch.
+            </p>
+          )}
+          {currentBatch && (
+            <div className="mt-3 px-4 py-3 rounded-xl" style={{ background: '#EBF3FE', border: '1px solid #BDD7FC' }}>
+              <p className="text-xs font-black" style={{ color: '#1A73E8' }}>{currentBatch.name}</p>
+              <p className="text-xs mt-0.5" style={{ color: '#4A9AEE' }}>
+                {currentBatch.centers?.name} · Class {currentBatch.class_level} · {currentBatch.batch_type}
+              </p>
             </div>
           )}
         </div>
 
-        {/* Week number */}
-        <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 9, boxShadow: '0 1px 3px rgba(0,0,0,.06)', border: '1.5px solid #e0e0e0' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Week Number</div>
-          <div style={{ fontSize: 10, color: '#999', marginBottom: 8 }}>Which academic week? (May 2026 = Week 1)</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => setWeekNo(w => Math.max(1, w - 1))} style={{ width: 38, height: 38, borderRadius: '50%', border: '2px solid #e0e0e0', background: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 28, fontWeight: 800 }}>{weekNo}</div>
-              <div style={{ fontSize: 10, color: '#999', fontWeight: 600 }}>academic week</div>
-            </div>
-            <button onClick={() => setWeekNo(w => Math.min(52, w + 1))} style={{ width: 38, height: 38, borderRadius: '50%', border: '2px solid #e0e0e0', background: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+        {/* ── Week Status ── */}
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-5">
+          <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">📌 Week Status</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setIsHoliday(false)}
+              className={`py-3 rounded-xl text-sm font-bold border-2 transition-all ${!isHoliday ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}
+            >✅ Lectures Held</button>
+            <button onClick={() => setIsHoliday(true)}
+              className={`py-3 rounded-xl text-sm font-bold border-2 transition-all ${isHoliday ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}
+            >🟠 Holiday / No Class</button>
           </div>
         </div>
 
-        <div style={{ fontSize: 9, fontWeight: 800, color: '#999', textTransform: 'uppercase', letterSpacing: .8, margin: '16px 0 7px 2px' }}>Lecture details</div>
-
-        {/* Holiday toggle */}
-        <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 9, boxShadow: '0 1px 3px rgba(0,0,0,.06)', border: '1.5px solid #e0e0e0' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>This week&apos;s status</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <button
-              onClick={() => setIsHoliday(false)}
-              style={{ padding: 11, border: `2px solid ${!isHoliday ? '#08BD80' : '#e0e0e0'}`, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: !isHoliday ? '#f0fdf8' : '#fff', color: !isHoliday ? '#06a872' : '#555' }}
-            >
-              ✅ Lectures held
-            </button>
-            <button
-              onClick={() => setIsHoliday(true)}
-              style={{ padding: 11, border: `2px solid ${isHoliday ? '#ff832b' : '#e0e0e0'}`, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: isHoliday ? '#fff8f0' : '#fff', color: isHoliday ? '#8e4800' : '#555' }}
-            >
-              🟠 Holiday / No class
-            </button>
-          </div>
-        </div>
-
-        {/* Lecture details (hidden when holiday) */}
         {!isHoliday && (
           <>
-            {/* Subject */}
-            <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 9, boxShadow: '0 1px 3px rgba(0,0,0,.06)', border: '1.5px solid #e0e0e0' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                Subject
-                <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: '#fff0f0', color: '#c0392b', border: '1px solid #ffd0d0', textTransform: 'uppercase' }}>required</span>
-              </div>
-              <select
-                value={subject}
-                onChange={e => { setSubject(e.target.value as Subject); setChapter('') }}
-                disabled={!selectedAssignmentId}
-                style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 14, fontWeight: 500, background: !selectedAssignmentId ? '#f6f6f6' : '#fff', appearance: 'none' }}
+            {/* ── Subject ── */}
+            <div className="bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-5"
+              style={{ borderLeft: subject ? `4px solid ${accentColor}` : undefined }}>
+              <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">
+                📚 Subject <span className="text-red-400 normal-case font-normal ml-1">required</span>
+              </label>
+              <select value={subject}
+                onChange={e => { setSubject(e.target.value); setChapter(''); setChapterPlan(0); setChapterDone(0) }}
+                disabled={!selectedId}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400 bg-white"
               >
-                <option value="">{selectedAssignmentId ? '— Select subject —' : '— Select batch first —'}</option>
+                <option value="">{selectedId ? '— Select subject —' : '— Select batch first —'}</option>
                 {batchSubjects.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
-            {/* Chapter */}
-            <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 9, boxShadow: '0 1px 3px rgba(0,0,0,.06)', border: '1.5px solid #e0e0e0' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                Chapter / Topic Covered
-                <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: '#fff0f0', color: '#c0392b', border: '1px solid #ffd0d0', textTransform: 'uppercase' }}>required</span>
-              </div>
-              <div style={{ fontSize: 10, color: '#999', marginBottom: 8 }}>Select from list, or type freely below.</div>
-              {chaptersLoading ? (
-                <div style={{ fontSize: 10, color: '#999', padding: '6px 0', fontWeight: 600 }}>Loading chapters…</div>
-              ) : (
-                <select
-                  value={chapter}
-                  onChange={e => setChapter(e.target.value)}
-                  disabled={!subject}
-                  style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 14, fontWeight: 500, background: !subject ? '#f6f6f6' : '#fff', appearance: 'none' }}
-                >
-                  <option value="">{subject ? '— Select chapter —' : '— Select subject first —'}</option>
-                  {chapters.map(c => <option key={c} value={c}>{c}</option>)}
-                  {chapters.length > 0 && <option value="__other__">Other / Type below</option>}
-                </select>
+            {/* ── Chapter ── */}
+            <div className="bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-5"
+              style={{ borderLeft: chapter && chapter !== '__other__' ? `4px solid ${accentColor}` : undefined }}>
+              <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">
+                📖 Chapter / Topic <span className="text-red-400 normal-case font-normal ml-1">required</span>
+              </label>
+              {chaptersLoading
+                ? <div className="h-12 bg-gray-100 rounded-xl animate-pulse" />
+                : <select value={chapter} onChange={e => { setChapter(e.target.value); setIsChapterComplete(false) }}
+                    disabled={!subject}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400 bg-white"
+                  >
+                    <option value="">{subject ? '— Select chapter —' : '— Select subject first —'}</option>
+                    {chapters.map(c => (
+                      <option key={c} value={c}>{c.replace(/^\[[^\]]*\]\s*/, '')}</option>
+                    ))}
+                    <option value="__other__">Other / Not in plan</option>
+                  </select>
+              }
+              {chapters.length === 0 && subject && !chaptersLoading && (
+                <p className="text-xs text-amber-600 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  ⚠️ No chapters in the plan yet. Ask your head to add chapters in the Planner.
+                </p>
               )}
-              {(chapter === '__other__' || chapters.length === 0) && subject && (
-                <input
-                  type="text"
-                  value={chapterInput}
-                  onChange={e => setChapterInput(e.target.value)}
-                  placeholder="Type chapter name here…"
-                  style={{ marginTop: 7, width: '100%', padding: '11px 12px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13 }}
+              {chapter === '__other__' && (
+                <input type="text" value={chapterInput} onChange={e => setChapterInput(e.target.value)}
+                  placeholder="Type chapter name…"
+                  className="mt-2 w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
                 />
               )}
             </div>
 
-            {/* Sub-topics */}
-            <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 9, boxShadow: '0 1px 3px rgba(0,0,0,.06)', border: '1.5px solid #e0e0e0' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                Sub-topics Covered
-                <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: 'rgba(105,41,196,.07)', color: '#6929C4', border: '1px solid rgba(105,41,196,.2)', textTransform: 'uppercase' }}>optional</span>
+            {/* ── Chapter Progress Info ── shows when chapter is selected and has a plan */}
+            {ch && chapterPlan > 0 && (
+              <div className="rounded-2xl border shadow-sm overflow-hidden"
+                style={{
+                  background: afterToday > chapterPlan * 1.15
+                    ? 'linear-gradient(135deg,#fff7ed,#fed7aa)'
+                    : afterToday >= chapterPlan * 0.75
+                    ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)'
+                    : 'linear-gradient(135deg,#eff6ff,#dbeafe)',
+                  borderColor: afterToday > chapterPlan * 1.15 ? '#fed7aa' : afterToday >= chapterPlan * 0.75 ? '#bbf7d0' : '#bfdbfe',
+                }}>
+                <div className="px-5 pt-4 pb-2">
+                  <p className="text-[11px] font-black uppercase tracking-wider mb-1"
+                    style={{ color: afterToday > chapterPlan * 1.15 ? '#92400e' : afterToday >= chapterPlan * 0.75 ? '#166534' : '#1e3a8a' }}>
+                    📊 Chapter Lecture Allocation
+                  </p>
+                  <p className="font-black text-gray-900 text-sm">{ch.replace(/^\[[^\]]*\]\s*/, '')}</p>
+                </div>
+
+                <div className="px-5 pb-4">
+                  <div className="flex items-end justify-between mb-2 mt-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-gray-900">{chapterDone}</div>
+                      <div className="text-[10px] text-gray-500 font-semibold">done so far</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-400 font-bold">+ {lectures} today</div>
+                      <div className="text-xl font-black" style={{ color: accentColor }}>= {afterToday}</div>
+                      <div className="text-[10px] text-gray-500 font-semibold">after this log</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-gray-900">{chapterPlan}</div>
+                      <div className="text-[10px] text-gray-500 font-semibold">planned total</div>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="h-3 bg-white/50 rounded-full overflow-hidden mb-2">
+                    <div className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.min(chPercent, 100)}%`,
+                        background: afterToday > chapterPlan * 1.15 ? '#f97316' : afterToday >= chapterPlan * 0.75 ? '#22c55e' : '#3b82f6',
+                      }} />
+                  </div>
+
+                  <p className="text-xs font-semibold text-center" style={{
+                    color: afterToday > chapterPlan * 1.15 ? '#c2410c' : afterToday >= chapterPlan * 0.75 ? '#166534' : '#1e40af'
+                  }}>
+                    {chPercent}% of {chapterPlan} planned lectures used
+                    {afterToday > chapterPlan
+                      ? ` · ⚠️ ${afterToday - chapterPlan} over planned allocation`
+                      : afterToday < chapterPlan
+                      ? ` · ${chapterPlan - afterToday} lectures remaining`
+                      : ' · ✅ Exactly on plan'}
+                  </p>
+                </div>
               </div>
-              <textarea
-                value={subtopics}
-                onChange={e => setSubtopics(e.target.value)}
+            )}
+
+            {/* ── Sub-topics ── */}
+            <div className="bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-5">
+              <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">
+                🔍 Sub-topics Covered <span className="text-gray-400 normal-case font-normal">(optional)</span>
+              </label>
+              <textarea value={subtopics} onChange={e => setSubtopics(e.target.value)}
                 placeholder="e.g. Coulomb's Law, Electric Field, Gauss's Law…"
-                rows={3}
-                style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, resize: 'none', lineHeight: 1.5 }}
+                rows={2}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-400"
               />
             </div>
 
-            {/* Lecture counter */}
-            <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 9, boxShadow: '0 1px 3px rgba(0,0,0,.06)', border: '1.5px solid #e0e0e0' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                Lectures Taken This Week
-                <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: '#fff0f0', color: '#c0392b', border: '1px solid #ffd0d0', textTransform: 'uppercase' }}>required</span>
-              </div>
-              <div style={{ fontSize: 10, color: '#999', marginBottom: 8 }}>Total lectures for this subject this week.</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button onClick={() => setLectures(l => Math.max(0, l - 1))} style={{ width: 44, height: 44, borderRadius: '50%', border: '2px solid #e0e0e0', background: '#fff', fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>−</button>
-                <div style={{ textAlign: 'center', flex: 1 }}>
-                  <div style={{ fontSize: 32, fontWeight: 800 }}>{lectures}</div>
-                  <div style={{ fontSize: 10, color: '#999', fontWeight: 600 }}>lectures</div>
+            {/* ── Lecture counter ── */}
+            <div className="bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-5">
+              <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-4">
+                🎓 Lectures This Week <span className="text-red-400 normal-case font-normal ml-1">required</span>
+              </label>
+              <div className="flex items-center gap-4">
+                <button onClick={() => setLectures(l => Math.max(0, l-1))}
+                  className="w-12 h-12 rounded-full border-2 border-gray-200 text-2xl font-bold flex items-center justify-center hover:border-red-300 hover:text-red-500 hover:bg-red-50 transition-all">−</button>
+                <div className="flex-1 text-center">
+                  <div className="text-5xl font-black text-gray-900 tabular-nums" style={{ color: accentColor }}>{lectures}</div>
+                  <div className="text-xs text-gray-400 font-semibold mt-1">lectures this week</div>
                 </div>
-                <button onClick={() => setLectures(l => Math.min(30, l + 1))} style={{ width: 44, height: 44, borderRadius: '50%', border: '2px solid #e0e0e0', background: '#fff', fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>+</button>
-                <input type="number" min={0} max={30} value={lectures} onChange={e => setLectures(Math.max(0, parseInt(e.target.value) || 0))} style={{ width: 60, textAlign: 'center', fontWeight: 700, fontSize: 15, padding: '8px 4px', border: '1.5px solid #e0e0e0', borderRadius: 8 }} />
+                <button onClick={() => setLectures(l => Math.min(30, l+1))}
+                  className="w-12 h-12 rounded-full border-2 border-gray-200 text-2xl font-bold flex items-center justify-center hover:border-green-300 hover:text-green-600 hover:bg-green-50 transition-all">+</button>
+                <input type="number" min={0} max={30} value={lectures}
+                  onChange={e => setLectures(Math.max(0, parseInt(e.target.value)||0))}
+                  className="w-16 text-center text-sm font-black px-2 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-violet-400"
+                />
               </div>
-
-              {/* Pace indicator — instant, no server call */}
-              {paceResult && (
-                <div style={{
-                  marginTop: 10, padding: '9px 11px', borderRadius: 7, fontSize: 11, fontWeight: 600, lineHeight: 1.5, border: '1px solid',
-                  ...(paceResult.status === 'on_track' ? { background: '#DEFBE6', color: '#198038', borderColor: '#B0E8C0' }
-                    : paceResult.status === 'behind' || paceResult.status === 'slow' ? { background: '#FFF1F1', color: '#A2191F', borderColor: '#FFB0B0' }
-                    : { background: '#EEF4FF', color: '#0043CE', borderColor: '#B0C8FF' })
-                }}>
-                  {paceResult.emoji} {lectures} lectures vs {plannedThisMonth} planned for {monthKey}.{' '}
-                  {paceResult.status === 'on_track' ? 'Good pace!' : paceResult.status === 'fast' ? 'Academic head will review pace.' : `${plannedThisMonth - lectures} behind plan — please note below.`}
-                </div>
-              )}
             </div>
 
-            {/* Notes */}
-            <div style={{ background: '#fff', borderRadius: 12, padding: 14, marginBottom: 9, boxShadow: '0 1px 3px rgba(0,0,0,.06)', border: '1.5px solid #e0e0e0' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                Notes for Academic Head
-                <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, background: 'rgba(105,41,196,.07)', color: '#6929C4', border: '1px solid rgba(105,41,196,.2)', textTransform: 'uppercase' }}>optional</span>
+            {/* ── Chapter Complete Toggle ── */}
+            {ch && (
+              <div className={`rounded-2xl border shadow-sm p-5 transition-all ${isChapterComplete ? 'bg-green-50 border-green-300' : 'bg-white/90 backdrop-blur border-white'}`}>
+                <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-3">
+                  🏁 Chapter Status
+                </label>
+                <p className="text-sm text-gray-600 mb-4 font-medium">
+                  Did you <strong>finish teaching this chapter</strong> this week? (Not just this week&apos;s portion — the entire chapter)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => setIsChapterComplete(false)}
+                    className={`py-3.5 rounded-xl text-sm font-bold border-2 transition-all ${!isChapterComplete ? 'bg-gray-100 border-gray-400 text-gray-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}
+                  >
+                    🔄 Still in Progress
+                  </button>
+                  <button onClick={() => setIsChapterComplete(true)}
+                    className={`py-3.5 rounded-xl text-sm font-bold border-2 transition-all ${isChapterComplete ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-500 hover:border-green-300 hover:text-green-700'}`}
+                  >
+                    ✅ Chapter Complete!
+                  </button>
+                </div>
+                {isChapterComplete && (
+                  <p className="text-xs text-green-700 font-semibold mt-3 bg-green-100 px-3 py-2 rounded-lg">
+                    This chapter will be marked as completed in the Chapter Progress report.
+                  </p>
+                )}
               </div>
-              <textarea
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
+            )}
+
+            {/* ── Notes ── */}
+            <div className="bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-5">
+              <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">
+                💬 Notes for Academic Head <span className="text-gray-400 normal-case font-normal">(optional)</span>
+              </label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)}
                 placeholder="Students struggling? Pace issue? Extra info?"
                 rows={2}
-                style={{ width: '100%', padding: '11px 12px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, resize: 'none', lineHeight: 1.5 }}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-400"
               />
             </div>
           </>
         )}
 
         {error && (
-          <div style={{ color: '#c0392b', fontSize: 11, fontWeight: 600, padding: 10, background: '#fff0f0', borderRadius: 7, border: '1px solid #ffd0d0', marginBottom: 8 }}>
+          <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-semibold">
             ⚠️ {error}
           </div>
         )}
 
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          style={{ width: '100%', padding: 16, background: submitting ? '#ccc' : 'linear-gradient(135deg,#6929C4,#08BD80)', color: '#fff', border: 'none', borderRadius: 11, fontSize: 15, fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', boxShadow: submitting ? 'none' : '0 3px 14px rgba(105,41,196,.3)', letterSpacing: .2 }}
+        <button onClick={handleSubmit} disabled={submitting}
+          className="w-full py-4 text-white rounded-2xl font-black text-base transition-all disabled:opacity-50 shadow-lg hover:opacity-90 hover:scale-[1.01] active:scale-[0.99]"
+          style={{ background: submitting ? '#9ca3af' : 'linear-gradient(135deg,#7C3AED,#1A73E8)' }}
         >
-          {submitting ? 'Saving…' : 'Submit Weekly Log →'}
+          {submitting ? 'Saving…' : '✓ Submit Weekly Log'}
         </button>
+
+        <Link href={backHref} className="flex items-center justify-center gap-2 py-3 text-sm text-gray-400 hover:text-gray-600 transition-colors font-medium">
+          ← Back to {isAdmin ? 'Dashboard' : 'History'}
+        </Link>
       </div>
     </div>
   )

@@ -148,7 +148,7 @@ CREATE POLICY "head_director_enquiries" ON admission_enquiries
 -- ── HOLIDAYS MANAGEMENT ─────────────────────────────────────────
 
 CREATE POLICY "head_director_manage_holidays" ON holidays
-  FOR INSERT USING (get_my_role() IN ('academic_head', 'director'));
+  FOR INSERT WITH CHECK (get_my_role() IN ('academic_head', 'director'));
 
 CREATE POLICY "head_director_update_holidays" ON holidays
   FOR UPDATE USING (get_my_role() IN ('academic_head', 'director'));
