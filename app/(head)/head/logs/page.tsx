@@ -26,14 +26,12 @@ export default async function AllLogsPage({ searchParams }: { searchParams: { ce
     batches: { id: string; name: string; batch_type: string; class_level: string; center_id: string; centers: { name: string } } | null
   }
 
-  let query = supabase
+  const { data: logs } = await supabase
     .from('weekly_logs')
     .select(`id, subject, chapter_name, lectures_this_week, week_number, is_holiday, notes, submitted_at,
       user_profiles(name, employee_id), batches(id, name, batch_type, class_level, center_id, centers(name))`)
     .order('submitted_at', { ascending: false })
-    .limit(200)
-
-  const { data: logs } = await query as { data: LogRow[] | null }
+    .limit(200) as { data: LogRow[] | null }
 
   let allLogs = logs ?? []
   if (searchParams.center) {
