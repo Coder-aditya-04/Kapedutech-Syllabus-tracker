@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { PaceStatusBadge } from '@/components/shared/PaceStatusBadge'
 import { CenterBadge } from '@/components/shared/CenterBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
+import { CenterFilter } from '@/components/shared/CenterFilter'
 import { calculatePace, MONTHS } from '@/lib/pace'
 import type { PaceStatus } from '@/lib/supabase/types'
 
@@ -15,28 +16,33 @@ const ROW_STYLE: Record<PaceStatus, string> = {
   no_entry: 'hover:bg-gray-50/60',
 }
 
-export default async function AllLogsPage() {
+export default async function AllLogsPage({ searchParams }: { searchParams: { center?: string } }) {
   const supabase = await createClient()
 
   interface LogRow {
     id: string; subject: string; chapter_name: string; lectures_this_week: number
     week_number: number; is_holiday: boolean; notes: string | null; submitted_at: string
     user_profiles: { name: string; employee_id: string | null } | null
-    batches: { name: string; batch_type: string; class_level: string; centers: { name: string } } | null
+    batches: { id: string; name: string; batch_type: string; class_level: string; center_id: string; centers: { name: string } } | null
   }
 
-  const { data: logs } = await supabase
+  let query = supabase
     .from('weekly_logs')
     .select(`id, subject, chapter_name, lectures_this_week, week_number, is_holiday, notes, submitted_at,
-      user_profiles(name, employee_id), batches(name, batch_type, class_level, centers(name))`)
+      user_profiles(name, employee_id), batches(id, name, batch_type, class_level, center_id, centers(name))`)
     .order('submitted_at', { ascending: false })
-    .limit(200) as { data: LogRow[] | null }
+    .limit(200)
 
-  const allLogs = logs ?? []
+  const { data: logs } = await query as { data: LogRow[] | null }
+
+  let allLogs = logs ?? []
+  if (searchParams.center) {
+    allLogs = allLogs.filter(l => l.batches?.center_id === searchParams.center)
+  }
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-5 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">📋 All Submissions</h1>
           <p className="text-gray-500 text-base mt-1">
@@ -55,6 +61,8 @@ export default async function AllLogsPage() {
           ))}
         </div>
       </div>
+
+      <div className="mb-6"><CenterFilter /></div>
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg,#fafafa,#f5f3ff)' }}>

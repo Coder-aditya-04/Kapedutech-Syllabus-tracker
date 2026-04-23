@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calculatePace, getCurrentMonthKey, MONTHS } from '@/lib/pace'
 import { PaceStatusBadge } from '@/components/shared/PaceStatusBadge'
 import { CenterBadge } from '@/components/shared/CenterBadge'
+import { CenterFilter } from '@/components/shared/CenterFilter'
 import { BatchTypeBadge } from '@/components/shared/BatchTypeBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
 import Link from 'next/link'
@@ -14,22 +15,25 @@ interface BatchRow {
   name: string
   batch_type: string
   class_level: string
+  center_id: string
   centers: { name: string }
 }
 
-export default async function HeadDashboardPage() {
+export default async function HeadDashboardPage({ searchParams }: { searchParams: { center?: string } }) {
   const supabase = await createClient()
   const monthKey = getCurrentMonthKey()
   const monthIdx = MONTHS.indexOf(monthKey as typeof MONTHS[number])
 
   interface LogRaw { batch_id: string; subject: string; lectures_this_week: number }
 
-  // Get all active batches
-  const { data: batches } = await supabase
+  // Get all active batches (filter by center if selected)
+  let batchQuery = supabase
     .from('batches')
-    .select('id, name, batch_type, class_level, centers(name)')
+    .select('id, name, batch_type, class_level, center_id, centers(name)')
     .eq('is_active', true)
-    .order('name') as { data: BatchRow[] | null }
+    .order('name')
+  if (searchParams.center) batchQuery = batchQuery.eq('center_id', searchParams.center)
+  const { data: batches } = await batchQuery as { data: BatchRow[] | null }
 
   // Get this month's log aggregates
   const monthStart = new Date(new Date().getFullYear(), monthIdx, 1).toISOString()
@@ -91,6 +95,9 @@ export default async function HeadDashboardPage() {
 
   return (
     <div>
+      {/* Center filter */}
+      <div className="mb-6"><CenterFilter /></div>
+
       {/* Page header */}
       <div className="flex items-center justify-between mb-8">
         <div>

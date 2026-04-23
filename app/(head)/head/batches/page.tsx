@@ -65,6 +65,7 @@ export default function BatchesPage() {
 
   const [batches, setBatches] = useState<BatchRow[]>([])
   const [centers, setCenters] = useState<Center[]>([])
+  const [centerFilter, setCenterFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editBatch, setEditBatch] = useState<BatchRow | null>(null)
@@ -149,8 +150,9 @@ export default function BatchesPage() {
     loadData()
   }
 
-  const active   = batches.filter(b => b.is_active)
-  const inactive = batches.filter(b => !b.is_active)
+  const filtered = centerFilter === 'all' ? batches : batches.filter(b => b.center_id === centerFilter)
+  const active   = filtered.filter(b => b.is_active)
+  const inactive = filtered.filter(b => !b.is_active)
 
   if (loading) {
     return (
@@ -166,7 +168,7 @@ export default function BatchesPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Batch Management</h1>
           <p className="text-gray-500 text-sm mt-0.5">{active.length} active · {inactive.length} inactive</p>
@@ -179,6 +181,30 @@ export default function BatchesPage() {
           New Batch
         </button>
       </div>
+
+      {/* Center filter */}
+      {centers.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-6">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mr-1">Center</span>
+          {[{ id: 'all', name: 'All Centers' }, ...centers].map(c => {
+            const isActive = c.id === centerFilter
+            return (
+              <button
+                key={c.id}
+                onClick={() => setCenterFilter(c.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                  isActive
+                    ? 'text-white border-transparent shadow-sm'
+                    : 'text-gray-500 border-gray-200 bg-white hover:border-violet-300 hover:text-violet-600'
+                }`}
+                style={isActive ? { background: 'linear-gradient(135deg,#7C3AED,#1A73E8)', border: 'none' } : {}}
+              >
+                {c.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Batches grid */}
       {batches.length === 0 ? (

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { CenterBadge } from '@/components/shared/CenterBadge'
+import { CenterFilter } from '@/components/shared/CenterFilter'
 import { DeleteTeacherButton } from '@/components/teacher/DeleteTeacherButton'
 import Link from 'next/link'
 
@@ -12,16 +13,20 @@ interface TeacherRow {
   }>
 }
 
-export default async function TeachersPage() {
+export default async function TeachersPage({ searchParams }: { searchParams: { center?: string } }) {
   const supabase = await createClient()
 
-  const { data: teachers } = await supabase
+  let query = supabase
     .from('user_profiles')
     .select(`id, name, role, employee_id, center_id, created_at,
       centers(name),
       teacher_batch_assignments(id, subject, is_active, batches(name, batch_type, class_level, centers(name)))`)
     .in('role', ['teacher', 'academic_head', 'director'])
-    .order('name') as { data: TeacherRow[] | null }
+    .order('name')
+
+  if (searchParams.center) query = query.eq('center_id', searchParams.center)
+
+  const { data: teachers } = await query as { data: TeacherRow[] | null }
 
   const all = teachers ?? []
 
@@ -36,7 +41,7 @@ export default async function TeachersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">👨‍🏫 Teachers</h1>
           <p className="text-gray-500 text-base mt-1"><span className="font-semibold text-violet-600">{all.length}</span> teachers registered</p>
@@ -48,6 +53,10 @@ export default async function TeachersPage() {
         >
           + Add Teacher
         </Link>
+      </div>
+
+      <div className="mb-6">
+        <CenterFilter />
       </div>
 
       {all.length === 0 ? (
