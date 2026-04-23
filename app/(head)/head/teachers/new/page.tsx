@@ -35,21 +35,28 @@ export default function NewTeacherPage() {
     setError('')
     setSuccess('')
 
-    const res = await fetch('/api/create-teacher', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, employee_id: empId, center_id: centerId }),
-    })
-    const json = await res.json()
+    try {
+      const res = await fetch('/api/create-teacher', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, employee_id: empId, center_id: centerId }),
+      })
 
-    setLoading(false)
-    if (!res.ok) {
-      setError(json.error ?? 'Failed to create teacher')
-      return
+      let json: { error?: string; success?: boolean } = {}
+      try { json = await res.json() } catch { /* non-JSON response */ }
+
+      if (!res.ok) {
+        setError(json.error ?? `Server error (${res.status}) — check Vercel logs`)
+        return
+      }
+
+      setSuccess(`${name} has been added. They can log in immediately with ${email}.`)
+      setTimeout(() => router.push('/head/teachers'), 2500)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Network error — please try again')
+    } finally {
+      setLoading(false)
     }
-
-    setSuccess(`${name} has been added. They can log in immediately with ${email}.`)
-    setTimeout(() => router.push('/head/teachers'), 2500)
   }
 
   return (
