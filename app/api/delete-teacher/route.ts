@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -37,5 +38,7 @@ export async function DELETE(request: Request) {
     await admin.auth.admin.deleteUser(profile.user_id)
   }
 
+  revalidatePath('/head/teachers')
+  revalidatePath('/director/overview')
   return NextResponse.json({ success: true })
 }

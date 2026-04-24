@@ -51,6 +51,7 @@ export default function NewTeacherPage() {
       }
 
       setSuccess(`${name} has been added. They can log in immediately with ${email}.`)
+      router.refresh()
       setTimeout(() => router.push('/head/teachers'), 2500)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Network error — please try again')
