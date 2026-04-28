@@ -10,15 +10,15 @@ export type Database = {
         Relationships: []
       }
       batches: {
-        Row: { id: string; name: string; center_id: string; class_level: string; batch_type: string; academic_year: string; is_active: boolean; created_at: string }
-        Insert: { id?: string; name: string; center_id: string; class_level: string; batch_type: string; academic_year?: string; is_active?: boolean }
-        Update: { id?: string; name?: string; center_id?: string; class_level?: string; batch_type?: string; academic_year?: string; is_active?: boolean }
+        Row: { id: string; name: string; center_id: string; class_level: string; batch_type: string; academic_year: string; is_active: boolean; time_slot: string | null; slots_per_day: number | null; created_at: string }
+        Insert: { id?: string; name: string; center_id: string; class_level: string; batch_type: string; academic_year?: string; is_active?: boolean; time_slot?: string | null; slots_per_day?: number | null }
+        Update: { id?: string; name?: string; center_id?: string; class_level?: string; batch_type?: string; academic_year?: string; is_active?: boolean; time_slot?: string | null; slots_per_day?: number | null }
         Relationships: []
       }
       user_profiles: {
-        Row: { id: string; user_id: string; name: string; role: string; center_id: string | null; employee_id: string | null; created_at: string }
-        Insert: { id?: string; user_id: string; name: string; role: string; center_id?: string | null; employee_id?: string | null }
-        Update: { name?: string; role?: string; center_id?: string | null; employee_id?: string | null }
+        Row: { id: string; user_id: string; name: string; role: string; center_id: string | null; employee_id: string | null; teacher_code: string | null; created_at: string }
+        Insert: { id?: string; user_id: string; name: string; role: string; center_id?: string | null; employee_id?: string | null; teacher_code?: string | null }
+        Update: { name?: string; role?: string; center_id?: string | null; employee_id?: string | null; teacher_code?: string | null }
         Relationships: []
       }
       teacher_batch_assignments: {
@@ -67,6 +67,24 @@ export type Database = {
         Row: { id: string; student_name: string; parent_name: string | null; phone: string; email: string | null; class_level: string | null; target_exam: string | null; center_preference: string | null; status: string; notes: string | null; follow_up_date: string | null; created_at: string; updated_at: string }
         Insert: { id?: string; student_name: string; parent_name?: string | null; phone: string; email?: string | null; class_level?: string | null; target_exam?: string | null; center_preference?: string | null; status?: string; notes?: string | null; follow_up_date?: string | null }
         Update: { status?: string; notes?: string | null; follow_up_date?: string | null }
+        Relationships: []
+      }
+      weekly_schedule: {
+        Row: { id: string; week_start: string; batch_id: string; date: string; slot_index: number; teacher_id: string | null; subject: string; is_override: boolean; is_sunday_extra: boolean; created_at: string }
+        Insert: { id?: string; week_start: string; batch_id: string; date: string; slot_index: number; teacher_id?: string | null; subject: string; is_override?: boolean; is_sunday_extra?: boolean }
+        Update: { teacher_id?: string | null; subject?: string; is_override?: boolean }
+        Relationships: []
+      }
+      teacher_absences: {
+        Row: { id: string; teacher_id: string; week_start: string; day_name: string; slot_index: number; created_at: string }
+        Insert: { id?: string; teacher_id: string; week_start: string; day_name: string; slot_index?: number }
+        Update: { slot_index?: number }
+        Relationships: []
+      }
+      batch_offdays: {
+        Row: { id: string; batch_id: string; week_start: string; day_name: string; created_at: string }
+        Insert: { id?: string; batch_id: string; week_start: string; day_name: string }
+        Update: Record<string, never>
         Relationships: []
       }
     }

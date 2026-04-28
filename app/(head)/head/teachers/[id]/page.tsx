@@ -9,7 +9,7 @@ import Link from 'next/link'
 
 interface Teacher {
   id: string; name: string; employee_id: string | null; role: string; center_id: string | null
-  centers: { name: string } | null
+  centers: { name: string } | null; teacher_code: string | null
 }
 interface Assignment {
   id: string; subject: string; is_active: boolean
@@ -37,11 +37,13 @@ export default function TeacherEditPage() {
   const [addSubject, setAddSubject]   = useState('')
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput]     = useState('')
+  const [editingCode, setEditingCode] = useState(false)
+  const [codeInput, setCodeInput]     = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
     const [tRes, aRes, bRes] = await Promise.all([
-      supabase.from('user_profiles').select('id, name, employee_id, role, center_id, centers(name)').eq('id', id).single(),
+      supabase.from('user_profiles').select('id, name, employee_id, role, center_id, teacher_code, centers(name)').eq('id', id).single(),
       supabase.from('teacher_batch_assignments').select('id, subject, is_active, batches(id, name, batch_type, centers(name))').eq('teacher_id', id).order('is_active', { ascending: false }),
       supabase.from('batches').select('id, name, batch_type, class_level, centers(name)').eq('is_active', true).order('name'),
     ])
@@ -94,6 +96,18 @@ export default function TeacherEditPage() {
     setSaving(true)
     await supabase.from('user_profiles').update({ name: trimmed }).eq('id', id)
     setEditingName(false)
+    await load()
+    setSaving(false)
+  }
+
+  async function saveCode() {
+    setSaving(true)
+    await fetch('/api/update-teacher-code', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileId: id, code: codeInput.trim() }),
+    })
+    setEditingCode(false)
     await load()
     setSaving(false)
   }
@@ -165,6 +179,36 @@ export default function TeacherEditPage() {
               </div>
             )}
             {teacher.employee_id && <p className="text-xs text-gray-500 font-semibold">{teacher.employee_id}</p>}
+            {/* Timetable code */}
+            <div className="flex items-center gap-2 mt-1 group">
+              {editingCode ? (
+                <>
+                  <input
+                    autoFocus
+                    value={codeInput}
+                    onChange={e => setCodeInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveCode(); if (e.key === 'Escape') setEditingCode(false) }}
+                    placeholder="e.g. P1"
+                    className="text-xs font-black text-violet-700 border-b-2 border-violet-500 bg-transparent outline-none w-16 uppercase"
+                    maxLength={8}
+                  />
+                  <button onClick={saveCode} disabled={saving} className="text-[10px] font-bold text-white bg-violet-600 px-2 py-0.5 rounded-lg disabled:opacity-50">Save</button>
+                  <button onClick={() => setEditingCode(false)} className="text-[10px] font-semibold text-gray-400 hover:text-gray-600">Cancel</button>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10px] text-gray-400 font-semibold">Code:</span>
+                  <span className="text-xs font-black text-violet-700 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-lg">
+                    {teacher.teacher_code ?? '—'}
+                  </span>
+                  <button
+                    onClick={() => { setCodeInput(teacher.teacher_code ?? ''); setEditingCode(true) }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-violet-600 transition-all text-[10px] p-0.5 rounded"
+                    title="Edit timetable code (P1, C1, M1…)"
+                  >✏️</button>
+                </>
+              )}
+            </div>
           </div>
           {teacher.centers && <CenterBadge name={teacher.centers.name} />}
         </div>

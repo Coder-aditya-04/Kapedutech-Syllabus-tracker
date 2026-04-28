@@ -6,16 +6,17 @@ import { RealtimeRefresher } from '@/components/shared/RealtimeRefresher'
 
 const HEAD_NAV = [
   { href: '/head/dashboard',         label: '📊 Dashboard'        },
+  { href: '/head/schedule',          label: '📅 Schedule'         },
   { href: '/head/compare',           label: '⚖️ Compare'          },
   { href: '/head/chapter-progress',  label: '📚 Chapter Progress' },
   { href: '/head/alerts',            label: '🔔 Alerts'           },
   { href: '/head/messages',          label: '💬 Messages'         },
   { href: '/head/logs',              label: '📋 Logs'             },
-  { href: '/head/planner',           label: '📅 Planner'          },
+  { href: '/head/planner',           label: '🗓️ Planner'          },
   { href: '/head/batches',           label: '🏫 Batches'          },
   { href: '/head/teachers',          label: '👨‍🏫 Teachers'        },
   { href: '/head/mentorship',        label: '🤝 Mentorship'       },
-  { href: '/head/holidays',          label: '🗓️ Holidays'         },
+  { href: '/head/holidays',          label: '🏖️ Holidays'         },
   { href: '/teacher/log',            label: '✏️ My Log'           },
 ]
 

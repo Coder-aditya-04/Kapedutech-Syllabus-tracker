@@ -17,6 +17,8 @@ interface BatchRow {
   is_active: boolean
   academic_year: string
   center_id: string
+  time_slot: string | null
+  slots_per_day: number | null
   centers: { name: string } | null
   teacher_batch_assignments: Array<{
     id: string
@@ -49,6 +51,8 @@ interface FormState {
   class_level: string
   academic_year: string
   is_active: boolean
+  time_slot: string
+  slots_per_day: number
 }
 
 const EMPTY_FORM: FormState = {
@@ -58,6 +62,8 @@ const EMPTY_FORM: FormState = {
   class_level: '11',
   academic_year: ACADEMIC_YEAR,
   is_active: true,
+  time_slot: 'Morning',
+  slots_per_day: 3,
 }
 
 export default function BatchesPage() {
@@ -104,6 +110,8 @@ export default function BatchesPage() {
       class_level: batch.class_level,
       academic_year: batch.academic_year,
       is_active: batch.is_active,
+      time_slot: batch.time_slot ?? 'Morning',
+      slots_per_day: batch.slots_per_day ?? 3,
     })
     setFormError('')
     setShowModal(true)
@@ -125,7 +133,9 @@ export default function BatchesPage() {
           class_level: form.class_level,
           academic_year: form.academic_year,
           is_active: form.is_active,
-        })
+          time_slot: form.time_slot,
+          slots_per_day: form.slots_per_day,
+        } as never)
         .eq('id', editBatch.id)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else {
@@ -136,7 +146,9 @@ export default function BatchesPage() {
         class_level: form.class_level,
         academic_year: form.academic_year,
         is_active: form.is_active,
-      })
+        time_slot: form.time_slot,
+        slots_per_day: form.slots_per_day,
+      } as never)
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 
@@ -242,6 +254,11 @@ export default function BatchesPage() {
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${batch.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                     {batch.is_active ? 'Active' : 'Inactive'}
                   </span>
+                  {batch.time_slot && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-full">
+                      {batch.time_slot} · {batch.slots_per_day ?? 3} slots
+                    </span>
+                  )}
                 </div>
 
                 {/* Teachers */}
@@ -360,6 +377,38 @@ export default function BatchesPage() {
                     {CLASS_LEVELS.map(l => (
                       <option key={l} value={l}>Class {l}</option>
                     ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Time slot + Slots per day */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Time Slot
+                  </label>
+                  <select
+                    value={form.time_slot}
+                    onChange={e => setForm(f => ({ ...f, time_slot: e.target.value }))}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+                  >
+                    <option value="Morning">Morning</option>
+                    <option value="Afternoon">Afternoon</option>
+                    <option value="Evening">Evening</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Slots / Day
+                  </label>
+                  <select
+                    value={form.slots_per_day}
+                    onChange={e => setForm(f => ({ ...f, slots_per_day: Number(e.target.value) }))}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+                  >
+                    <option value={2}>2 slots</option>
+                    <option value={3}>3 slots</option>
+                    <option value={4}>4 slots</option>
                   </select>
                 </div>
               </div>
