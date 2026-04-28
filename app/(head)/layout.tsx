@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { NavLogo } from '@/components/UnacademyLogo'
+import { RealtimeRefresher } from '@/components/shared/RealtimeRefresher'
 
 const HEAD_NAV = [
   { href: '/head/dashboard',         label: '📊 Dashboard'        },
@@ -113,6 +114,7 @@ export default async function HeadLayout({ children }: { children: React.ReactNo
         </div>
       </header>
 
+      <RealtimeRefresher />
       <main className="relative z-10 max-w-screen-2xl mx-auto p-6 md:p-8 animate-fade-up">
         {children}
       </main>
