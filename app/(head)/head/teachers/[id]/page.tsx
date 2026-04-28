@@ -35,6 +35,8 @@ export default function TeacherEditPage() {
   const [error, setError]             = useState('')
   const [addBatchId, setAddBatchId]   = useState('')
   const [addSubject, setAddSubject]   = useState('')
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput]     = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -86,6 +88,16 @@ export default function TeacherEditPage() {
     await load(); setSaving(false)
   }
 
+  async function saveName() {
+    const trimmed = nameInput.trim()
+    if (!trimmed) return
+    setSaving(true)
+    await supabase.from('user_profiles').update({ name: trimmed }).eq('id', id)
+    setEditingName(false)
+    await load()
+    setSaving(false)
+  }
+
   if (loading) return (
     <div className="max-w-2xl animate-pulse space-y-4">
       <div className="h-8 bg-gray-200 rounded-xl w-64" />
@@ -122,7 +134,36 @@ export default function TeacherEditPage() {
             {initials}
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-black text-gray-900">{teacher.name}</h2>
+            {editingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false) }}
+                  className="text-base font-black text-gray-900 border-b-2 border-violet-500 bg-transparent outline-none w-40"
+                />
+                <button onClick={saveName} disabled={saving}
+                  className="text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 px-2.5 py-1 rounded-lg disabled:opacity-50">
+                  Save
+                </button>
+                <button onClick={() => setEditingName(false)}
+                  className="text-xs font-semibold text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg">
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group">
+                <h2 className="text-lg font-black text-gray-900">{teacher.name}</h2>
+                <button
+                  onClick={() => { setNameInput(teacher.name); setEditingName(true) }}
+                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-violet-600 transition-all p-1 rounded"
+                  title="Edit name"
+                >
+                  ✏️
+                </button>
+              </div>
+            )}
             {teacher.employee_id && <p className="text-xs text-gray-500 font-semibold">{teacher.employee_id}</p>}
           </div>
           {teacher.centers && <CenterBadge name={teacher.centers.name} />}

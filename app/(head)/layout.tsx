@@ -29,7 +29,7 @@ export default async function HeadLayout({ children }: { children: React.ReactNo
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('name, role')
+    .select('id, name, role')
     .eq('user_id', user.id)
     .single()
 
@@ -93,7 +93,7 @@ export default async function HeadLayout({ children }: { children: React.ReactNo
           </nav>
 
           <div className="shrink-0 flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl"
+            <Link href={`/head/teachers/${profile.id}`} className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl hover:opacity-80 transition-opacity"
               style={{ background: 'rgba(124,58,237,0.18)', border: '1.5px solid rgba(124,58,237,0.35)' }}>
               <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-black text-white shrink-0 shadow-lg"
                 style={{ background: 'linear-gradient(135deg, #1A73E8, #7C3AED)' }}>
@@ -103,7 +103,7 @@ export default async function HeadLayout({ children }: { children: React.ReactNo
                 <div className="text-white text-sm font-bold leading-tight">{profile.name}</div>
                 <div className="text-gray-400 text-[10px] uppercase tracking-widest">{profile.role === 'director' ? 'Director' : 'Head'}</div>
               </div>
-            </div>
+            </Link>
             <form action="/auth/signout" method="post">
               <button className="text-gray-400 hover:text-red-400 text-sm font-semibold px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-red-900/30">
                 Sign out
