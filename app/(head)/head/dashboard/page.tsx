@@ -8,7 +8,7 @@ import { SubjectBadge } from '@/components/shared/SubjectBadge'
 import Link from 'next/link'
 import type { PaceStatus } from '@/lib/supabase/types'
 
-export const revalidate = 60
+export const revalidate = 0
 
 interface BatchRow {
   id: string

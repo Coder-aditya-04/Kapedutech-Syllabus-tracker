@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 
-export const revalidate = 60
+export const revalidate = 0
 
 interface PlanRow {
   batch_type: string

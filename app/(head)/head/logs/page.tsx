@@ -6,7 +6,7 @@ import { CenterFilter } from '@/components/shared/CenterFilter'
 import { calculatePace, MONTHS } from '@/lib/pace'
 import type { PaceStatus } from '@/lib/supabase/types'
 
-export const revalidate = 30
+export const revalidate = 0
 
 const ROW_STYLE: Record<PaceStatus, string> = {
   behind:   'bg-red-50/70 hover:bg-red-50',

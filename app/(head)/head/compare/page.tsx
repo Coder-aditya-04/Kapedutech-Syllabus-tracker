@@ -4,7 +4,7 @@ import { PaceStatusBadge } from '@/components/shared/PaceStatusBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
 import { BatchTypeBadge } from '@/components/shared/BatchTypeBadge'
 
-export const revalidate = 60
+export const revalidate = 0
 
 export default async function ComparePage() {
   const supabase = await createClient()

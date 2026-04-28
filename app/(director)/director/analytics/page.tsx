@@ -5,7 +5,7 @@ import { SubjectBadge } from '@/components/shared/SubjectBadge'
 import { PaceStatusBadge } from '@/components/shared/PaceStatusBadge'
 import type { PaceStatus } from '@/lib/supabase/types'
 
-export const revalidate = 60
+export const revalidate = 0
 
 export default async function AnalyticsPage() {
   const supabase = await createClient()

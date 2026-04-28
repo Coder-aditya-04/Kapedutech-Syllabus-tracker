@@ -6,7 +6,7 @@ import { BatchTypeBadge } from '@/components/shared/BatchTypeBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
 import type { PaceStatus } from '@/lib/supabase/types'
 
-export const revalidate = 60
+export const revalidate = 0
 
 export default async function DirectorOverviewPage() {
   const supabase = await createClient()

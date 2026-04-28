@@ -4,7 +4,7 @@ import { PaceStatusBadge } from '@/components/shared/PaceStatusBadge'
 import { CenterBadge } from '@/components/shared/CenterBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
 
-export const revalidate = 60
+export const revalidate = 0
 
 export default async function AlertsPage() {
   const supabase = await createClient()
