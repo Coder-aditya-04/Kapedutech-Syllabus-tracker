@@ -83,20 +83,30 @@ export default function PlannerPage() {
   async function saveEdit() {
     if (!editRow) return
     setSaving(true); setSaveError('')
-    const { error } = await supabase.from('lecture_plans').update({
-      topic_name: editRow.topic_name.trim(),
-      planned_lectures: editRow.planned_lectures,
-      start_date: editRow.start_date || null,
-    }).eq('id', editRow.id)
+    const res = await fetch('/api/lecture-plans', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editRow.id,
+        topic_name: editRow.topic_name.trim(),
+        planned_lectures: editRow.planned_lectures,
+        start_date: editRow.start_date || null,
+      }),
+    })
+    const json = await res.json().catch(() => ({}))
     setSaving(false)
-    if (error) { setSaveError(error.message); return }
+    if (!res.ok) { setSaveError(json.error ?? 'Failed to save'); return }
     setEditRow(null)
     loadPlans()
   }
 
   async function deleteRow(id: string) {
     if (!confirm('Delete this chapter entry?')) return
-    await supabase.from('lecture_plans').delete().eq('id', id)
+    await fetch('/api/lecture-plans', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
     loadPlans()
   }
 
@@ -105,17 +115,22 @@ export default function PlannerPage() {
       setAddError('Fill in all required fields'); return
     }
     setAdding(true); setAddError('')
-    const { error } = await supabase.from('lecture_plans').insert({
-      batch_type: addForm.batch_type,
-      subject: addForm.subject,
-      class_level: addForm.class_level || '12',
-      month_name: addForm.month_name,
-      topic_name: addForm.topic_name.trim(),
-      planned_lectures: addForm.planned_lectures,
-      start_date: addForm.start_date || null,
+    const res = await fetch('/api/lecture-plans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        batch_type: addForm.batch_type,
+        subject: addForm.subject,
+        class_level: addForm.class_level || '12',
+        month_name: addForm.month_name,
+        topic_name: addForm.topic_name.trim(),
+        planned_lectures: addForm.planned_lectures,
+        start_date: addForm.start_date || null,
+      }),
     })
+    const json = await res.json().catch(() => ({}))
     setAdding(false)
-    if (error) { setAddError(error.message); return }
+    if (!res.ok) { setAddError(json.error ?? 'Failed to add chapter'); return }
     setShowAdd(false)
     setAddForm({ batch_type: '', subject: '', class_level: '', month_name: '', topic_name: '', planned_lectures: 0, start_date: '' })
     loadPlans()
