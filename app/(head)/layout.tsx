@@ -9,6 +9,7 @@ const HEAD_NAV = [
   { href: '/head/compare',           label: '⚖️ Compare'          },
   { href: '/head/chapter-progress',  label: '📚 Chapter Progress' },
   { href: '/head/alerts',            label: '🔔 Alerts'           },
+  { href: '/head/messages',          label: '💬 Messages'         },
   { href: '/head/logs',              label: '📋 Logs'             },
   { href: '/head/planner',           label: '📅 Planner'          },
   { href: '/head/batches',           label: '🏫 Batches'          },

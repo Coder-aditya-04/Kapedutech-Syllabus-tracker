@@ -1,346 +1,294 @@
 import { createClient } from '@/lib/supabase/server'
+import { CenterBadge } from '@/components/shared/CenterBadge'
+import Link from 'next/link'
 
 export const revalidate = 0
 
+// ── Types ──────────────────────────────────────────────────────────────────
 interface PlanRow {
-  batch_type: string
-  class_level: string
-  subject: string
-  topic_name: string
-  planned_lectures: number
+  batch_type: string; class_level: string; subject: string
+  topic_name: string; planned_lectures: number; month_name: string
 }
-
 interface LogRow {
-  subject: string
-  chapter_name: string
-  lectures_this_week: number
-  notes: string | null
-  batches: { batch_type: string; class_level: string; name: string; centers: { name: string } } | null
-  user_profiles: { name: string } | null
+  subject: string; chapter_name: string; lectures_this_week: number
+  submitted_at: string; notes: string | null
+  batches: { name: string; batch_type: string; class_level: string; centers: { name: string } } | null
+}
+interface BatchRow {
+  id: string; name: string; batch_type: string; class_level: string; is_active: boolean
+  centers: { name: string }
 }
 
-// Strip [PHY]/[CHE] prefix, lowercase, remove punctuation
+type ChapStatus = 'completed' | 'in_progress' | 'not_started'
+
+interface ChapSummary {
+  topicName: string; subject: string; monthName: string
+  planned: number; done: number; status: ChapStatus; completedMonth: string | null
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 function norm(s: string) {
   return s.replace(/^\[[^\]]*\]\s*/, '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
 }
 
-function matchPlan(
-  chapterName: string,
-  subject: string,
-  batchType: string,
-  classLevel: string,
-  planMap: Map<string, number>,
-): number {
-  const normLog = norm(chapterName)
-  let bestPartial = 0
-  for (const [key, v] of Array.from(planMap)) {
-    // key format: "batch_type|class_level|subject|topic_name"
-    const parts = key.split('|')
-    const pBatch = parts[0] ?? ''
-    const pClass = parts[1] ?? ''
-    const pSubj  = parts[2] ?? ''
-    const pTopic = parts.slice(3).join('|') // topic_name may contain |
-    if (pBatch !== batchType || pClass !== classLevel || pSubj !== subject) continue
-    const normPlan = norm(pTopic)
-    if (normPlan === normLog) return v
-    if (normPlan.includes(normLog) || normLog.includes(normPlan)) bestPartial = v
-  }
-  return bestPartial
+
+const SUBJECT_COLORS: Record<string, string> = {
+  Physics: 'bg-blue-100 text-blue-800', Chemistry: 'bg-purple-100 text-purple-800',
+  Botany: 'bg-green-100 text-green-800', Zoology: 'bg-teal-100 text-teal-800',
+  Mathematics: 'bg-orange-100 text-orange-800',
 }
 
-type Status = 'rushed' | 'over' | 'on_track' | 'no_plan' | 'in_progress'
-
-const STATUS_STYLE: Record<Status, { bg: string; text: string; border: string; label: string; emoji: string }> = {
-  rushed:      { bg: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-200',    label: 'Rushed ✓Done',  emoji: '⚠️' },
-  over:        { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', label: 'Over ✓Done',    emoji: '🔵' },
-  on_track:    { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200',  label: 'Done ✓',        emoji: '✅' },
-  in_progress: { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200',   label: 'In Progress',   emoji: '🔄' },
-  no_plan:     { bg: 'bg-gray-50',   text: 'text-gray-500',   border: 'border-gray-200',   label: 'No Plan',       emoji: '⚪' },
+const STATUS_CONFIG: Record<ChapStatus, { label: string; emoji: string; bg: string; text: string; border: string }> = {
+  completed:   { label: 'Completed',   emoji: '✅', bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200' },
+  in_progress: { label: 'In Progress', emoji: '🔄', bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200'  },
+  not_started: { label: 'Not Started', emoji: '⏳', bg: 'bg-gray-50',   text: 'text-gray-500',   border: 'border-gray-200'  },
 }
 
-interface ChapterRow {
-  teacherName: string
-  batchName: string
-  centerName: string
-  batchType: string
-  classLevel: string
-  subject: string
-  chapterName: string
-  planned: number
-  done: number
-  percent: number
-  isComplete: boolean
-  status: Status
-}
-
-const SUBJECT_COLORS: Record<string, { bg: string; text: string }> = {
-  Physics:     { bg: 'bg-blue-100',   text: 'text-blue-800'   },
-  Chemistry:   { bg: 'bg-purple-100', text: 'text-purple-800' },
-  Botany:      { bg: 'bg-green-100',  text: 'text-green-800'  },
-  Zoology:     { bg: 'bg-teal-100',   text: 'text-teal-800'   },
-  Mathematics: { bg: 'bg-orange-100', text: 'text-orange-800' },
-}
-
-export default async function ChapterProgressPage() {
+// ── Page ───────────────────────────────────────────────────────────────────
+export default async function ChapterProgressPage({
+  searchParams,
+}: {
+  searchParams: { batch?: string }
+}) {
   const supabase = await createClient()
 
-  const [{ data: rawPlans }, { data: rawLogs }] = await Promise.all([
-    supabase.from('lecture_plans').select('batch_type, class_level, subject, topic_name, planned_lectures'),
+  const [{ data: rawPlans }, { data: rawLogs }, { data: rawBatches }] = await Promise.all([
+    supabase.from('lecture_plans').select('batch_type, class_level, subject, topic_name, planned_lectures, month_name'),
     supabase.from('weekly_logs')
-      .select('subject, chapter_name, lectures_this_week, notes, batches(batch_type, class_level, name, centers(name)), user_profiles(name)')
+      .select('subject, chapter_name, lectures_this_week, submitted_at, notes, batches(name, batch_type, class_level, centers(name))')
       .eq('is_holiday', false),
+    supabase.from('batches').select('id, name, batch_type, class_level, is_active, centers(name)').eq('is_active', true).order('name'),
   ])
 
-  const plans = (rawPlans ?? []) as PlanRow[]
-  const logs  = (rawLogs  ?? []) as unknown as LogRow[]
+  const plans   = (rawPlans   ?? []) as PlanRow[]
+  const logs    = (rawLogs    ?? []) as unknown as LogRow[]
+  const batches = (rawBatches ?? []) as unknown as BatchRow[]
 
-  // Build plan map keyed by pipe-separated fields
-  const planMap = new Map<string, number>()
-  for (const p of plans) {
-    const key = [p.batch_type, p.class_level, p.subject, p.topic_name].join('|')
-    planMap.set(key, (planMap.get(key) ?? 0) + p.planned_lectures)
-  }
+  // Group batches by batch_type for the tab list
+  const batchTypeSet = new Set(plans.map(p => p.batch_type))
+  const batchTabs = Array.from(batchTypeSet).sort()
+  const selectedBatchType = searchParams.batch ?? batchTabs[0] ?? ''
 
-  // Aggregate logs: (teacher, batch, subject, chapter) → total done + completion flag
-  const aggMap = new Map<string, {
-    teacherName: string; batchName: string; centerName: string
-    batchType: string; classLevel: string; subject: string; chapterName: string
-    done: number; isComplete: boolean
-  }>()
+  // Build log aggregation: key = "subject||normTopic" for the selected batch_type
+  const logAgg = new Map<string, { done: number; isComplete: boolean; lastMonth: string | null }>()
 
-  for (const l of logs) {
-    const batch   = l.batches
-    const teacher = l.user_profiles
-    if (!batch || !teacher) continue
-    // Derive the plan's batch_type from batch name (same as planner/log form do)
+  for (const log of logs) {
+    const batch = log.batches
+    if (!batch) continue
     const batchBase = batch.name.replace(/\s*[–\-]\s*\d+.*$/, '').trim()
-    const key = [teacher.name, batch.name, l.subject, l.chapter_name].join('|')
-    if (!aggMap.has(key)) {
-      aggMap.set(key, {
-        teacherName: teacher.name,
-        batchName:   batch.name,
-        centerName:  batch.centers?.name ?? '',
-        batchType:   batchBase,
-        classLevel:  batch.class_level,
-        subject:     l.subject,
-        chapterName: l.chapter_name,
-        done: 0,
-        isComplete: false,
-      })
-    }
-    const entry = aggMap.get(key)!
-    entry.done += l.lectures_this_week
-    if (l.notes?.includes('✅ Chapter completed.')) entry.isComplete = true
+    if (batchBase !== selectedBatchType) continue
+
+    const normChap = norm(log.chapter_name)
+    const key = `${log.subject}||${normChap}`
+    const existing = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null }
+    existing.done += log.lectures_this_week
+    if (log.notes?.includes('✅ Chapter completed.')) existing.isComplete = true
+    const month = new Date(log.submitted_at).toLocaleString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' })
+    if (!existing.lastMonth) existing.lastMonth = month
+    logAgg.set(key, existing)
   }
 
-  // Build result rows
-  const rows: ChapterRow[] = []
-  for (const [, agg] of Array.from(aggMap)) {
-    const planned = matchPlan(agg.chapterName, agg.subject, agg.batchType, agg.classLevel, planMap)
-    const percent = planned > 0 ? Math.round((agg.done / planned) * 100) : 0
-
-    let status: Status
-    if (planned === 0) {
-      status = 'no_plan'
-    } else if (!agg.isComplete) {
-      // Chapter still in progress — never flag as rushed regardless of percentage
-      status = 'in_progress'
-    } else if (percent > 120) {
-      status = 'over'
-    } else if (percent < 75) {
-      status = 'rushed'  // Only warn when teacher explicitly marked chapter as done
-    } else {
-      status = 'on_track'
-    }
-
-    rows.push({ ...agg, planned, percent, status })
+  // Build chapter summaries from lecture_plans for selected batch_type
+  const chapMap = new Map<string, { planned: number; monthName: string }>()
+  for (const p of plans) {
+    if (p.batch_type !== selectedBatchType) continue
+    const key = `${p.subject}||${norm(p.topic_name)}`
+    const ex = chapMap.get(key)
+    if (ex) { ex.planned += p.planned_lectures }
+    else { chapMap.set(key, { planned: p.planned_lectures, monthName: p.month_name }) }
   }
 
-  // Sort: rushed first, then over, in_progress, on_track, no_plan
-  const ORDER: Record<Status, number> = { rushed: 0, over: 1, in_progress: 2, on_track: 3, no_plan: 4 }
-  rows.sort((a, b) => {
-    const so = ORDER[a.status] - ORDER[b.status]
-    return so !== 0 ? so : a.teacherName.localeCompare(b.teacherName)
-  })
+  const chapters: ChapSummary[] = []
+  for (const [key, { planned, monthName }] of Array.from(chapMap)) {
+    const [subject, normTopic] = key.split('||')
+    const topicName = plans.find(p => p.batch_type === selectedBatchType && norm(p.topic_name) === normTopic && p.subject === subject)?.topic_name ?? normTopic ?? ''
+    const agg = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null }
 
-  const counts = { rushed: 0, over: 0, on_track: 0, in_progress: 0, no_plan: 0 }
-  for (const r of rows) counts[r.status]++
+    let status: ChapStatus
+    if (agg.isComplete || agg.done >= planned) status = 'completed'
+    else if (agg.done > 0) status = 'in_progress'
+    else status = 'not_started'
 
-  const byTeacher = new Map<string, ChapterRow[]>()
-  for (const r of rows) {
-    if (!byTeacher.has(r.teacherName)) byTeacher.set(r.teacherName, [])
-    byTeacher.get(r.teacherName)!.push(r)
+    chapters.push({
+      topicName: topicName.replace(/^\[[^\]]*\]\s*/, ''),
+      subject: subject ?? '',
+      monthName,
+      planned,
+      done: agg.done,
+      status,
+      completedMonth: agg.isComplete ? agg.lastMonth : null,
+    })
   }
 
-  const warnings = rows.filter(r => r.status === 'rushed')
+  // Sort: in_progress first, then not_started, then completed
+  const ORDER: Record<ChapStatus, number> = { in_progress: 0, not_started: 1, completed: 2 }
+  chapters.sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.subject.localeCompare(b.subject))
+
+  const counts = { completed: 0, in_progress: 0, not_started: 0 }
+  for (const c of chapters) counts[c.status]++
+
+  // Also build per-subject grouping
+  const bySubject = new Map<string, ChapSummary[]>()
+  for (const c of chapters) {
+    if (!bySubject.has(c.subject)) bySubject.set(c.subject, [])
+    bySubject.get(c.subject)!.push(c)
+  }
+
+  // Batches of the selected type
+  const matchingBatches = batches.filter(b => b.name.replace(/\s*[–\-]\s*\d+.*$/, '').trim() === selectedBatchType)
 
   return (
     <div>
-      {/* ── Header ── */}
-      <div className="mb-8">
+      {/* Header */}
+      <div className="mb-6">
         <h1 className="text-3xl font-black text-gray-900 tracking-tight">📚 Chapter Progress</h1>
-        <p className="text-gray-500 text-base mt-1">
-          Chapter-wise: total lectures logged vs allocated — flags chapters completed too quickly
-        </p>
+        <p className="text-gray-500 text-base mt-1">Which chapters are done, in progress, or not yet started — per batch type</p>
       </div>
 
-      {/* ── Summary cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 stagger">
+      {/* Batch type tabs */}
+      {batchTabs.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-8">
+          {batchTabs.map(bt => {
+            const active = bt === selectedBatchType
+            return (
+              <Link key={bt} href={`/head/chapter-progress?batch=${encodeURIComponent(bt)}`}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
+                  active ? 'text-white border-transparent shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700'
+                }`}
+                style={active ? { background: 'linear-gradient(135deg,#7C3AED,#1A73E8)' } : {}}>
+                {bt}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Matching batches */}
+      {matchingBatches.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-6">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Batches:</span>
+          {matchingBatches.map(b => (
+            <span key={b.id} className="flex items-center gap-1.5 px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-semibold text-gray-600">
+              {b.name}
+              <span className="text-gray-300">·</span>
+              <CenterBadge name={b.centers.name} />
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
         {([
-          { label: 'Chapters Tracked', value: rows.length,        style: 'linear-gradient(135deg,#f5f3ff,#ede9fe)', textColor: 'text-violet-700', border: 'border-violet-100' },
-          { label: '⚠️ Rushed',        value: counts.rushed,      style: 'linear-gradient(135deg,#fef2f2,#fee2e2)', textColor: 'text-red-700',    border: 'border-red-100'    },
-          { label: '🔵 Over-planned',  value: counts.over,        style: 'linear-gradient(135deg,#fff7ed,#fed7aa)', textColor: 'text-orange-700', border: 'border-orange-100' },
-          { label: '✅ On Track',      value: counts.on_track,    style: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', textColor: 'text-green-700',  border: 'border-green-100'  },
-        ] as const).map(c => (
-          <div key={c.label} className={`rounded-2xl border ${c.border} p-5 card-lift`} style={{ background: c.style }}>
-            <div className={`text-3xl font-black ${c.textColor}`}>{c.value}</div>
-            <div className="text-sm font-bold text-gray-500 mt-1">{c.label}</div>
+          { status: 'completed'   as ChapStatus, label: 'Completed',   color: '#16a34a', grad: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: 'rgba(74,222,128,0.4)' },
+          { status: 'in_progress' as ChapStatus, label: 'In Progress', color: '#2563eb', grad: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: 'rgba(96,165,250,0.4)' },
+          { status: 'not_started' as ChapStatus, label: 'Not Started', color: '#6b7280', grad: 'linear-gradient(135deg,#f9fafb,#f3f4f6)', border: 'rgba(156,163,175,0.4)' },
+        ]).map(s => (
+          <div key={s.status} className="rounded-2xl p-5 card-lift" style={{ background: s.grad, border: `1.5px solid ${s.border}` }}>
+            <div className="text-4xl font-black mb-1" style={{ color: s.color }}>{counts[s.status]}</div>
+            <div className="text-sm font-bold text-gray-600">{STATUS_CONFIG[s.status].emoji} {s.label}</div>
+            <div className="text-xs text-gray-400 mt-0.5">of {chapters.length} total chapters</div>
           </div>
         ))}
       </div>
 
-      {/* ── Explanation ── */}
-      <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
-        <span className="font-black">How this works: </span>
-        Sums all weekly log entries per chapter regardless of which week they were logged.
-        If a teacher logged Electrostatics across 5 weeks (total 20 lectures) but the plan allocates 36 —
-        it shows <span className="font-black text-red-700">⚠️ Rushed</span> (under 75% of plan used).
-        Chapters not yet in the Planner show as <span className="font-black">⚪ No Plan</span>.
-      </div>
-
-      {/* ── Warnings block ── */}
-      {warnings.length > 0 && (
-        <div className="mb-8 rounded-2xl border border-red-200 overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-red-100 flex items-center gap-3"
-            style={{ background: 'linear-gradient(135deg,#fef2f2,#fee2e2)' }}>
-            <span className="text-xl">⚠️</span>
-            <h2 className="font-black text-red-800 text-lg">Chapters Finished Too Quickly — Review Required</h2>
-            <span className="ml-auto text-xs font-black text-red-600 bg-red-100 px-2.5 py-1 rounded-full border border-red-200">
-              {warnings.length} chapters
+      {/* Overall progress bar */}
+      {chapters.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-black text-gray-700">Overall Completion</span>
+            <span className="text-sm font-black text-violet-600">
+              {counts.completed}/{chapters.length} chapters ({Math.round((counts.completed / chapters.length) * 100)}%)
             </span>
           </div>
-          <div className="divide-y divide-red-50">
-            {warnings.map((r, i) => {
-              const sc = SUBJECT_COLORS[r.subject] ?? { bg: 'bg-gray-100', text: 'text-gray-700' }
-              const displayName = r.chapterName.replace(/^\[[^\]]*\]\s*/, '')
-              return (
-                <div key={i} className="px-6 py-4 bg-white hover:bg-red-50/40 transition-colors">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-black text-gray-900">{displayName}</div>
-                      <div className="text-sm text-gray-500 mt-0.5">{r.teacherName} · {r.batchName} · {r.centerName}</div>
-                    </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${sc.bg} ${sc.text}`}>{r.subject}</span>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-black text-red-700">{r.done} done / {r.planned} planned</div>
-                      <div className="text-xs text-red-500 font-semibold">Only {r.percent}% of allocation used</div>
-                    </div>
-                  </div>
-                  <div className="mt-3 h-2 bg-red-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-red-500" style={{ width: `${Math.min(r.percent, 100)}%` }} />
-                  </div>
-                </div>
-              )
-            })}
+          <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
+            <div className="h-full bg-green-500 transition-all" style={{ width: `${(counts.completed / chapters.length) * 100}%` }} />
+            <div className="h-full bg-blue-400 transition-all" style={{ width: `${(counts.in_progress / chapters.length) * 100}%` }} />
+          </div>
+          <div className="flex gap-4 mt-2 text-xs font-semibold text-gray-400">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />Completed</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />In Progress</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-200 inline-block" />Not Started</span>
           </div>
         </div>
       )}
 
-      {/* ── Per-teacher tables ── */}
-      <div className="space-y-6">
-        {Array.from(byTeacher).map(([teacher, teacherRows]) => {
-          const hasWarning = teacherRows.some(r => r.status === 'rushed')
-          return (
-            <div key={teacher} className={`rounded-2xl border overflow-hidden shadow-sm ${hasWarning ? 'border-red-200' : 'border-gray-200'}`}>
-              <div className="px-6 py-4 border-b flex items-center gap-3"
-                style={{ background: hasWarning ? 'linear-gradient(135deg,#fff5f5,#fef2f2)' : 'linear-gradient(135deg,#fafafa,#f5f3ff)' }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white shrink-0"
-                  style={{ background: hasWarning ? '#ef4444' : 'linear-gradient(135deg,#7C3AED,#1A73E8)' }}>
-                  {teacher.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <h3 className={`font-black text-base ${hasWarning ? 'text-red-900' : 'text-gray-900'}`}>{teacher}</h3>
-                  <p className="text-xs text-gray-500">{teacherRows.length} chapters tracked</p>
-                </div>
-                {hasWarning && (
-                  <span className="ml-auto text-xs font-black text-red-700 bg-red-100 px-2.5 py-1 rounded-full border border-red-200">
-                    ⚠️ {teacherRows.filter(r => r.status === 'rushed').length} rushed
-                  </span>
-                )}
-              </div>
-
-              <div className="overflow-x-auto bg-white">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50/50 border-b border-gray-100 text-left">
-                      <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Chapter</th>
-                      <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Subject</th>
-                      <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Batch</th>
-                      <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Planned</th>
-                      <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Done</th>
-                      <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide min-w-[160px]">Progress</th>
-                      <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teacherRows.map((r, i) => {
-                      const st  = STATUS_STYLE[r.status]
-                      const sc  = SUBJECT_COLORS[r.subject] ?? { bg: 'bg-gray-100', text: 'text-gray-700' }
-                      const barW = r.planned > 0 ? Math.min(Math.round((r.done / r.planned) * 100), 100) : 0
-                      const barColor =
-                        r.status === 'rushed'      ? '#ef4444' :
-                        r.status === 'over'        ? '#f97316' :
-                        r.status === 'on_track'    ? '#22c55e' : '#3b82f6'
-                      const displayName = r.chapterName.replace(/^\[[^\]]*\]\s*/, '')
-                      return (
-                        <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors ${r.status === 'rushed' ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-gray-50/60'}`}>
-                          <td className="px-5 py-3.5 font-bold text-gray-900 max-w-[200px]">{displayName}</td>
-                          <td className="px-5 py-3.5">
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${sc.bg} ${sc.text}`}>{r.subject}</span>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="font-semibold text-gray-700 text-sm">{r.batchName}</div>
-                            <div className="text-xs text-gray-400">{r.centerName}</div>
-                          </td>
-                          <td className="px-5 py-3.5 text-center font-black text-gray-700">
-                            {r.planned > 0 ? r.planned : <span className="text-gray-300">—</span>}
-                          </td>
-                          <td className="px-5 py-3.5 text-center font-black text-gray-900 text-base">{r.done}</td>
-                          <td className="px-5 py-3.5">
-                            {r.planned > 0 ? (
-                              <div className="space-y-1">
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden w-36">
-                                  <div className="h-full rounded-full transition-all" style={{ width: `${barW}%`, background: barColor }} />
-                                </div>
-                                <div className="text-xs font-semibold" style={{ color: barColor }}>{r.percent}%</div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-300">not in planner</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${st.bg} ${st.text} ${st.border}`}>
-                              {st.emoji} {st.label}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {rows.length === 0 && (
+      {/* Chapter table grouped by subject */}
+      {bySubject.size === 0 ? (
         <div className="rounded-2xl p-16 text-center" style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' }}>
           <div className="text-5xl mb-4">📚</div>
-          <div className="text-2xl font-black text-gray-900">No data yet</div>
-          <div className="text-gray-500 mt-2">
-            Chapter logs will appear here once teachers submit weekly logs
-          </div>
+          <div className="text-2xl font-black text-gray-900">No chapters in planner</div>
+          <div className="text-gray-500 mt-2">Add chapters to the Planner first, then track progress here</div>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {Array.from(bySubject).map(([subject, chaps]) => {
+            const sc = SUBJECT_COLORS[subject] ?? 'bg-gray-100 text-gray-700'
+            const done = chaps.filter(c => c.status === 'completed').length
+            return (
+              <div key={subject} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between"
+                  style={{ background: 'linear-gradient(135deg,#fafafa,#f5f3ff)' }}>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${sc}`}>{subject}</span>
+                    <span className="font-black text-gray-900">{chaps.length} chapters</span>
+                  </div>
+                  <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
+                    {done}/{chaps.length} done
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50/40 border-b border-gray-100 text-left">
+                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Chapter / Topic</th>
+                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Planned Month</th>
+                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Planned</th>
+                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Done</th>
+                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide min-w-[140px]">Progress</th>
+                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
+                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Completed In</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chaps.map((c, i) => {
+                        const st = STATUS_CONFIG[c.status]
+                        const pct = c.planned > 0 ? Math.min(Math.round((c.done / c.planned) * 100), 100) : 0
+                        const barColor = c.status === 'completed' ? '#22c55e' : c.status === 'in_progress' ? '#3b82f6' : '#e5e7eb'
+                        return (
+                          <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors
+                            ${c.status === 'completed' ? 'bg-green-50/30 hover:bg-green-50/60' :
+                              c.status === 'in_progress' ? 'bg-blue-50/30 hover:bg-blue-50/60' :
+                              'hover:bg-gray-50/60'}`}>
+                            <td className="px-5 py-3.5 font-bold text-gray-900 max-w-[220px]">{c.topicName}</td>
+                            <td className="px-5 py-3.5 text-xs font-semibold text-gray-500">{c.monthName}</td>
+                            <td className="px-5 py-3.5 text-center font-black text-gray-700">{c.planned}</td>
+                            <td className="px-5 py-3.5 text-center font-black text-gray-900 text-base">{c.done}</td>
+                            <td className="px-5 py-3.5">
+                              <div className="space-y-1">
+                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden w-28">
+                                  <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
+                                </div>
+                                <div className="text-xs font-semibold text-gray-400">{pct}%</div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${st.bg} ${st.text} ${st.border}`}>
+                                {st.emoji} {st.label}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 text-xs font-semibold text-gray-500">
+                              {c.completedMonth ?? <span className="text-gray-300">—</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
