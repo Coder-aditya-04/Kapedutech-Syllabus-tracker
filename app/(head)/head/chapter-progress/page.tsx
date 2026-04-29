@@ -49,10 +49,11 @@ const STATUS_CONFIG: Record<ChapStatus, { label: string; emoji: string; bg: stri
 
 // ── Page ───────────────────────────────────────────────────────────────────
 interface SearchParams { view?: string; batch?: string; center?: string; batchId?: string }
-interface Props { searchParams: SearchParams }
+interface Props { searchParams: Promise<SearchParams> }
 
 export default async function ChapterProgressPage({ searchParams }: Props) {
-  const view = searchParams.view === 'teacher' ? 'teacher' : 'plan'
+  const params = await searchParams
+  const view = params.view === 'teacher' ? 'teacher' : 'plan'
 
   const supabase = await createClient()
   const admin    = createAdminClient()
@@ -101,9 +102,9 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
   // VIEW 1: PLAN VS ACTUAL  (per individual batch)
   // ════════════════════════════════════════════════════════════════════════
   if (view === 'plan') {
-    const selectedCenterId = searchParams.center ?? centers[0]?.id ?? ''
+    const selectedCenterId = params.center ?? centers[0]?.id ?? ''
     const centerBatches    = batches.filter(b => b.center_id === selectedCenterId)
-    const selectedBatch    = centerBatches.find(b => b.id === searchParams.batchId) ?? centerBatches[0] ?? null
+    const selectedBatch    = centerBatches.find(b => b.id === params.batchId) ?? centerBatches[0] ?? null
 
     // Aggregate logs for exact batch ID
     const logAgg = new Map<string, { done: number; isComplete: boolean; lastMonth: string | null; teachers: Set<string> }>()
@@ -350,8 +351,8 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
   // ════════════════════════════════════════════════════════════════════════
   // VIEW 2: TEACHER-WISE
   // ════════════════════════════════════════════════════════════════════════
-  const selectedCenterId = searchParams.center ?? centers[0]?.id ?? ''
-  const selectedBatchId  = searchParams.batchId ?? ''
+  const selectedCenterId = params.center ?? centers[0]?.id ?? ''
+  const selectedBatchId  = params.batchId ?? ''
 
   const centerBatches = batches.filter(b => b.center_id === selectedCenterId)
   const selectedBatch = centerBatches.find(b => b.id === selectedBatchId) ?? centerBatches[0] ?? null

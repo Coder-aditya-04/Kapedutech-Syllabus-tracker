@@ -67,23 +67,21 @@ export default async function SchedulePage({ searchParams }: Props) {
 
   const admin = createAdminClient()
 
-  // ── Fetch data ─────────────────────────────────────────────────────────
-  const [batchRes, assignRes] = await Promise.all([
-    admin.from('batches')
-      .select('id, name, batch_type, time_slot, slots_per_day, centers(name)')
-      .eq('is_active', true),
-    admin.from('teacher_batch_assignments')
-      .select('batch_id, subject, user_profiles(id, name, teacher_code)')
-      .eq('is_active', true),
-  ])
-
-  // New tables may not exist until SQL migrations are run — handle gracefully
+  // Handle gracefully — new columns/tables may not exist until SQL migrations are run
   async function safeQuery<T>(q: PromiseLike<{ data: T | null }>) {
     try { const r = await Promise.resolve(q); return r.data } catch { return null }
   }
 
-  const rawBatches     = batchRes.data
-  const rawAssignments = assignRes.data
+  // ── Fetch data ─────────────────────────────────────────────────────────
+  // time_slot / slots_per_day / teacher_code may not exist yet → safeQuery returns null on 400
+  const [rawBatches, rawAssignments] = await Promise.all([
+    safeQuery(admin.from('batches')
+      .select('id, name, batch_type, time_slot, slots_per_day, centers(name)')
+      .eq('is_active', true)),
+    safeQuery(admin.from('teacher_batch_assignments')
+      .select('batch_id, subject, user_profiles(id, name, teacher_code)')
+      .eq('is_active', true)),
+  ])
   const rawSchedule    = await safeQuery(admin.from('weekly_schedule').select('*').eq('week_start', weekStart))
   const rawAbsences    = await safeQuery(admin.from('teacher_absences').select('*').eq('week_start', weekStart))
   const rawOffDays     = await safeQuery(admin.from('batch_offdays').select('batch_id, day_name').eq('week_start', weekStart))
@@ -111,7 +109,7 @@ export default async function SchedulePage({ searchParams }: Props) {
   }
   const teachers = Array.from(teacherMap.values())
 
-  const needsMigration = rawSchedule === null
+  const needsMigration = rawSchedule === null || rawBatches === null
   const schedule = (rawSchedule as unknown as RawScheduleRow[]) ?? []
   const absences = (rawAbsences as unknown as RawAbsence[]) ?? []
   const offDays  = (rawOffDays  as unknown as RawOffDay[])  ?? []

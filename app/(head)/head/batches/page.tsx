@@ -219,15 +219,15 @@ export default function BatchesPage() {
       )}
 
       {/* Batches grid */}
-      {batches.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <div className="text-4xl mb-3">📚</div>
-          <p className="font-medium">No batches yet</p>
-          <p className="text-sm mt-1">Click &ldquo;New Batch&rdquo; to create one</p>
+          <p className="font-medium">{batches.length === 0 ? 'No batches yet' : 'No batches for this center'}</p>
+          <p className="text-sm mt-1">{batches.length === 0 ? 'Click "New Batch" to create one' : 'Select a different center or All Centers'}</p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {batches.map(batch => {
+          {filtered.map(batch => {
             const activeAssign = (batch.teacher_batch_assignments ?? []).filter(a => a.is_active)
             const colorClass = BATCH_TYPE_COLORS[batch.batch_type] ?? 'bg-gray-100 text-gray-700 border-gray-200'
             return (
