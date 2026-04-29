@@ -3,6 +3,7 @@ import { CenterBadge } from '@/components/shared/CenterBadge'
 import { CenterFilter } from '@/components/shared/CenterFilter'
 import { DeleteTeacherButton } from '@/components/teacher/DeleteTeacherButton'
 import Link from 'next/link'
+import { Suspense } from 'react'
 
 interface TeacherRow {
   id: string; name: string; role: string; employee_id: string | null; center_id: string | null; created_at: string
@@ -56,7 +57,9 @@ export default async function TeachersPage({ searchParams }: { searchParams: { c
       </div>
 
       <div className="mb-6">
-        <CenterFilter />
+        <Suspense fallback={null}>
+          <CenterFilter />
+        </Suspense>
       </div>
 
       {all.length === 0 ? (

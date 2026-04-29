@@ -7,6 +7,7 @@ import { BatchTypeBadge } from '@/components/shared/BatchTypeBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
 import Link from 'next/link'
 import type { PaceStatus } from '@/lib/supabase/types'
+import { Suspense } from 'react'
 
 export const revalidate = 0
 
@@ -96,7 +97,7 @@ export default async function HeadDashboardPage({ searchParams }: { searchParams
   return (
     <div>
       {/* Center filter */}
-      <div className="mb-6"><CenterFilter /></div>
+      <div className="mb-6"><Suspense fallback={null}><CenterFilter /></Suspense></div>
 
       {/* Page header */}
       <div className="flex items-center justify-between mb-8">

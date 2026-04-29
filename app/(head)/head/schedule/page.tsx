@@ -68,29 +68,25 @@ export default async function SchedulePage({ searchParams }: Props) {
   const admin = createAdminClient()
 
   // ── Fetch data ─────────────────────────────────────────────────────────
-  const [
-    { data: rawBatches },
-    { data: rawAssignments },
-    { data: rawSchedule },
-    { data: rawAbsences },
-    { data: rawOffDays },
-  ] = await Promise.all([
+  const [batchRes, assignRes] = await Promise.all([
     admin.from('batches')
       .select('id, name, batch_type, time_slot, slots_per_day, centers(name)')
       .eq('is_active', true),
     admin.from('teacher_batch_assignments')
       .select('batch_id, subject, user_profiles(id, name, teacher_code)')
       .eq('is_active', true),
-    admin.from('weekly_schedule')
-      .select('*')
-      .eq('week_start', weekStart),
-    admin.from('teacher_absences')
-      .select('*')
-      .eq('week_start', weekStart),
-    admin.from('batch_offdays')
-      .select('batch_id, day_name')
-      .eq('week_start', weekStart),
   ])
+
+  // New tables may not exist until SQL migrations are run — handle gracefully
+  async function safeQuery<T>(q: PromiseLike<{ data: T | null }>) {
+    try { const r = await Promise.resolve(q); return r.data } catch { return null }
+  }
+
+  const rawBatches     = batchRes.data
+  const rawAssignments = assignRes.data
+  const rawSchedule    = await safeQuery(admin.from('weekly_schedule').select('*').eq('week_start', weekStart))
+  const rawAbsences    = await safeQuery(admin.from('teacher_absences').select('*').eq('week_start', weekStart))
+  const rawOffDays     = await safeQuery(admin.from('batch_offdays').select('batch_id, day_name').eq('week_start', weekStart))
 
   const batches = (rawBatches as unknown as RawBatch[] ?? []).map(b => ({
     id: b.id,
@@ -115,6 +111,7 @@ export default async function SchedulePage({ searchParams }: Props) {
   }
   const teachers = Array.from(teacherMap.values())
 
+  const needsMigration = rawSchedule === null
   const schedule = (rawSchedule as unknown as RawScheduleRow[]) ?? []
   const absences = (rawAbsences as unknown as RawAbsence[]) ?? []
   const offDays  = (rawOffDays  as unknown as RawOffDay[])  ?? []
@@ -169,6 +166,14 @@ export default async function SchedulePage({ searchParams }: Props) {
           Next week →
         </a>
       </div>
+
+      {/* Migration banner */}
+      {needsMigration && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <p className="font-black text-amber-800 mb-1">⚠️ Database setup required</p>
+          <p className="text-sm text-amber-700">Run the SQL migrations in Supabase to create <code className="bg-amber-100 px-1 rounded">weekly_schedule</code>, <code className="bg-amber-100 px-1 rounded">teacher_absences</code>, and <code className="bg-amber-100 px-1 rounded">batch_offdays</code> tables. SQL is in the conversation above.</p>
+        </div>
+      )}
 
       {/* Clash warning */}
       {clashBatchIds.size > 0 && (

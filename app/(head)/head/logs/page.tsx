@@ -5,6 +5,7 @@ import { SubjectBadge } from '@/components/shared/SubjectBadge'
 import { CenterFilter } from '@/components/shared/CenterFilter'
 import { calculatePace, MONTHS } from '@/lib/pace'
 import type { PaceStatus } from '@/lib/supabase/types'
+import { Suspense } from 'react'
 
 export const revalidate = 0
 
@@ -60,7 +61,7 @@ export default async function AllLogsPage({ searchParams }: { searchParams: { ce
         </div>
       </div>
 
-      <div className="mb-6"><CenterFilter /></div>
+      <div className="mb-6"><Suspense fallback={null}><CenterFilter /></Suspense></div>
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg,#fafafa,#f5f3ff)' }}>
