@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { CenterBadge } from '@/components/shared/CenterBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
 import Link from 'next/link'
 
@@ -99,48 +98,59 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
   )
 
   // ════════════════════════════════════════════════════════════════════════
-  // VIEW 1: PLAN VS ACTUAL
+  // VIEW 1: PLAN VS ACTUAL  (per individual batch)
   // ════════════════════════════════════════════════════════════════════════
   if (view === 'plan') {
-    const batchTypeSet = new Set(plans.map(p => p.batch_type))
-    const batchTabs    = Array.from(batchTypeSet).sort()
-    const selectedBT   = searchParams.batch ?? batchTabs[0] ?? ''
+    const selectedCenterId = searchParams.center ?? centers[0]?.id ?? ''
+    const centerBatches    = batches.filter(b => b.center_id === selectedCenterId)
+    const selectedBatch    = centerBatches.find(b => b.id === searchParams.batchId) ?? centerBatches[0] ?? null
 
-    // Aggregate logs for selected batch_type (normalise both sides: "JEE_EXCEL" ↔ "JEE Excel")
+    // Aggregate logs for exact batch ID
     const logAgg = new Map<string, { done: number; isComplete: boolean; lastMonth: string | null; teachers: Set<string> }>()
-    for (const log of logs) {
-      const b = log.batches
-      if (!b) continue
-      if (normBT(b.batch_type) !== normBT(selectedBT)) continue
-      const key = `${log.subject}||${norm(log.chapter_name)}`
-      const ex  = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null, teachers: new Set<string>() }
-      ex.done += log.lectures_this_week
-      if (log.notes?.includes('✅ Chapter completed.')) ex.isComplete = true
-      if (log.user_profiles?.name) ex.teachers.add(log.user_profiles.name)
-      const month = new Date(log.submitted_at).toLocaleString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' })
-      if (!ex.lastMonth) ex.lastMonth = month
-      logAgg.set(key, ex)
+    if (selectedBatch) {
+      for (const log of logs) {
+        if (log.batches?.id !== selectedBatch.id) continue
+        const key = `${log.subject}||${norm(log.chapter_name)}`
+        const ex  = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null, teachers: new Set<string>() }
+        ex.done += log.lectures_this_week
+        if (log.notes?.includes('✅ Chapter completed.')) ex.isComplete = true
+        if (log.user_profiles?.name) ex.teachers.add(log.user_profiles.name)
+        const month = new Date(log.submitted_at).toLocaleString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' })
+        if (!ex.lastMonth) ex.lastMonth = month
+        logAgg.set(key, ex)
+      }
     }
 
-    // Build chapter list from lecture_plans
+    // Plans for this batch type (normalise batch_type for comparison)
     const chapMap = new Map<string, { planned: number; monthName: string }>()
-    for (const p of plans) {
-      if (p.batch_type !== selectedBT) continue
-      const key = `${p.subject}||${norm(p.topic_name)}`
-      const ex  = chapMap.get(key)
-      if (ex) ex.planned += p.planned_lectures
-      else chapMap.set(key, { planned: p.planned_lectures, monthName: p.month_name })
+    if (selectedBatch) {
+      for (const p of plans) {
+        if (normBT(p.batch_type) !== normBT(selectedBatch.batch_type)) continue
+        const key = `${p.subject}||${norm(p.topic_name)}`
+        const ex  = chapMap.get(key)
+        if (ex) ex.planned += p.planned_lectures
+        else chapMap.set(key, { planned: p.planned_lectures, monthName: p.month_name })
+      }
     }
 
     const chapters = Array.from(chapMap).map(([key, { planned, monthName }]) => {
       const [subject, normTopic] = key.split('||')
-      const topicName = plans.find(p => p.batch_type === selectedBT && norm(p.topic_name) === normTopic && p.subject === subject)?.topic_name ?? normTopic ?? ''
+      const topicName = plans.find(p =>
+        selectedBatch && normBT(p.batch_type) === normBT(selectedBatch.batch_type) &&
+        norm(p.topic_name) === normTopic && p.subject === subject
+      )?.topic_name ?? normTopic ?? ''
       const agg = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null, teachers: new Set<string>() }
       let status: ChapStatus
       if (agg.isComplete || agg.done >= planned) status = 'completed'
       else if (agg.done > 0) status = 'in_progress'
       else status = 'not_started'
-      return { topicName: topicName.replace(/^\[[^\]]*\]\s*/, ''), subject: subject ?? '', monthName, planned, done: agg.done, status, completedMonth: agg.isComplete ? agg.lastMonth : null, teachers: Array.from(agg.teachers) }
+      const pct = planned > 0 ? Math.min(100, Math.round((agg.done / planned) * 100)) : 0
+      return {
+        topicName: topicName.replace(/^\[[^\]]*\]\s*/, ''),
+        subject: subject ?? '', monthName, planned, done: agg.done,
+        status, pct, completedMonth: agg.isComplete ? agg.lastMonth : null,
+        teachers: Array.from(agg.teachers),
+      }
     })
 
     const ORDER: Record<ChapStatus, number> = { in_progress: 0, not_started: 1, completed: 2 }
@@ -155,162 +165,183 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
       bySubject.get(c.subject)!.push(c)
     }
 
-    const matchingBatches = batches.filter(b => b.batch_type === selectedBT)
-
     return (
       <div>
         {header}
 
-        {/* Batch type tabs */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {batchTabs.map(bt => {
-            const active = bt === selectedBT
+        {/* Center selector */}
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mr-1">Center</span>
+          {centers.map(c => {
+            const active = c.id === selectedCenterId
             return (
-              <Link key={bt} href={`/head/chapter-progress?view=plan&batch=${encodeURIComponent(bt)}`}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${active ? 'text-white border-transparent shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-violet-300'}`}
+              <Link key={c.id} href={`/head/chapter-progress?view=plan&center=${c.id}`}
+                className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${active ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:border-violet-300'}`}
                 style={active ? { background: 'linear-gradient(135deg,#7C3AED,#1A73E8)' } : {}}>
-                {bt}
+                {c.name}
               </Link>
             )
           })}
         </div>
 
-        {/* Matching batches */}
-        {matchingBatches.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap mb-6">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Batches:</span>
-            {matchingBatches.map(b => (
-              <span key={b.id} className="flex items-center gap-1.5 px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-semibold text-gray-600">
-                {b.name} <span className="text-gray-300">·</span> <CenterBadge name={b.centers.name} />
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Summary cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          {([
-            { status: 'completed'   as ChapStatus, color: '#16a34a', grad: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: 'rgba(74,222,128,0.4)' },
-            { status: 'in_progress' as ChapStatus, color: '#2563eb', grad: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: 'rgba(96,165,250,0.4)' },
-            { status: 'not_started' as ChapStatus, color: '#6b7280', grad: 'linear-gradient(135deg,#f9fafb,#f3f4f6)', border: 'rgba(156,163,175,0.4)' },
-          ]).map(s => (
-            <div key={s.status} className="rounded-2xl p-5 card-lift" style={{ background: s.grad, border: `1.5px solid ${s.border}` }}>
-              <div className="text-4xl font-black mb-1" style={{ color: s.color }}>{counts[s.status]}</div>
-              <div className="text-sm font-bold text-gray-600">{STATUS_CONFIG[s.status].emoji} {STATUS_CONFIG[s.status].label}</div>
-              <div className="text-xs text-gray-400 mt-0.5">of {chapters.length} total chapters</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Overall progress bar */}
-        {chapters.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-black text-gray-700">Overall Completion</span>
-              <span className="text-sm font-black text-violet-600">
-                {counts.completed}/{chapters.length} chapters ({Math.round((counts.completed / chapters.length) * 100)}%)
-              </span>
-            </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
-              <div className="h-full bg-green-500 transition-all" style={{ width: `${(counts.completed / chapters.length) * 100}%` }} />
-              <div className="h-full bg-blue-400 transition-all" style={{ width: `${(counts.in_progress / chapters.length) * 100}%` }} />
-            </div>
-            <div className="flex gap-4 mt-2 text-xs font-semibold text-gray-400">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />Completed</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />In Progress</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-200 inline-block" />Not Started</span>
-            </div>
-          </div>
-        )}
-
-        {/* Chapter table grouped by subject */}
-        {bySubject.size === 0 ? (
-          <div className="rounded-2xl p-16 text-center" style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' }}>
-            <div className="text-5xl mb-4">📚</div>
-            <div className="text-2xl font-black text-gray-900">No chapters in planner</div>
-            <div className="text-gray-500 mt-2">Add chapters to the Planner first, then track progress here</div>
-          </div>
+        {/* Individual batch tabs for selected center */}
+        {centerBatches.length === 0 ? (
+          <div className="text-sm text-gray-400 mb-6">No active batches at this center.</div>
         ) : (
-          <div className="space-y-5">
-            {Array.from(bySubject).map(([subject, chaps]) => {
-              const sc   = SUBJECT_COLORS[subject] ?? 'bg-gray-100 text-gray-700'
-              const done = chaps.filter(c => c.status === 'completed').length
+          <div className="flex items-center gap-2 flex-wrap mb-6 pb-4 border-b border-gray-100">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mr-1">Batch</span>
+            {centerBatches.map(b => {
+              const active = b.id === (selectedBatch?.id ?? '')
               return (
-                <div key={subject} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between"
-                    style={{ background: 'linear-gradient(135deg,#fafafa,#f5f3ff)' }}>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${sc}`}>{subject}</span>
-                      <span className="font-black text-gray-900">{chaps.length} chapters</span>
-                    </div>
-                    <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
-                      {done}/{chaps.length} done
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50/40 border-b border-gray-100 text-left">
-                          <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Chapter / Topic</th>
-                          <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Teacher</th>
-                          <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Month</th>
-                          <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Planned</th>
-                          <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Done</th>
-                          <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide min-w-[140px]">Progress</th>
-                          <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
-                          <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Completed In</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {chaps.map((c, i) => {
-                          const st  = STATUS_CONFIG[c.status]
-                          const pct = c.planned > 0 ? Math.min(Math.round((c.done / c.planned) * 100), 100) : 0
-                          const barColor = c.status === 'completed' ? '#22c55e' : c.status === 'in_progress' ? '#3b82f6' : '#e5e7eb'
-                          return (
-                            <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors
-                              ${c.status === 'completed' ? 'bg-green-50/30 hover:bg-green-50/60' :
-                                c.status === 'in_progress' ? 'bg-blue-50/30 hover:bg-blue-50/60' :
-                                'hover:bg-gray-50/60'}`}>
-                              <td className="px-5 py-3.5 font-bold text-gray-900 max-w-[220px]">{c.topicName}</td>
-                              <td className="px-5 py-3.5">
-                                {c.teachers.length === 0
-                                  ? <span className="text-gray-300 text-xs">—</span>
-                                  : <div className="flex flex-col gap-0.5">
-                                      {c.teachers.map((t, ti) => (
-                                        <span key={ti} className="text-xs font-semibold text-gray-700 whitespace-nowrap">{t}</span>
-                                      ))}
-                                    </div>
-                                }
-                              </td>
-                              <td className="px-5 py-3.5 text-xs font-semibold text-gray-500">{c.monthName}</td>
-                              <td className="px-5 py-3.5 text-center font-black text-gray-700">{c.planned}</td>
-                              <td className="px-5 py-3.5 text-center font-black text-gray-900 text-base">{c.done}</td>
-                              <td className="px-5 py-3.5">
-                                <div className="space-y-1">
-                                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden w-28">
-                                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
-                                  </div>
-                                  <div className="text-xs font-semibold text-gray-400">{pct}%</div>
-                                </div>
-                              </td>
-                              <td className="px-5 py-3.5">
-                                <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${st.bg} ${st.text} ${st.border}`}>
-                                  {st.emoji} {st.label}
-                                </span>
-                              </td>
-                              <td className="px-5 py-3.5 text-xs font-semibold text-gray-500">
-                                {c.completedMonth ?? <span className="text-gray-300">—</span>}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <Link key={b.id}
+                  href={`/head/chapter-progress?view=plan&center=${selectedCenterId}&batchId=${b.id}`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${active ? 'text-white border-transparent shadow' : 'bg-white border-gray-200 text-gray-600 hover:border-violet-300'}`}
+                  style={active ? { background: 'linear-gradient(135deg,#7C3AED,#1A73E8)' } : {}}>
+                  {b.name}
+                </Link>
               )
             })}
           </div>
+        )}
+
+        {!selectedBatch ? (
+          <div className="rounded-2xl p-16 text-center" style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' }}>
+            <div className="text-5xl mb-4">📚</div>
+            <div className="text-2xl font-black text-gray-900">Select a batch above</div>
+          </div>
+        ) : (
+          <>
+            {/* Summary cards */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {([
+                { status: 'completed'   as ChapStatus, color: '#16a34a', grad: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: 'rgba(74,222,128,0.4)' },
+                { status: 'in_progress' as ChapStatus, color: '#2563eb', grad: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: 'rgba(96,165,250,0.4)' },
+                { status: 'not_started' as ChapStatus, color: '#6b7280', grad: 'linear-gradient(135deg,#f9fafb,#f3f4f6)', border: 'rgba(156,163,175,0.4)' },
+              ]).map(s => (
+                <div key={s.status} className="rounded-2xl p-5 card-lift" style={{ background: s.grad, border: `1.5px solid ${s.border}` }}>
+                  <div className="text-4xl font-black mb-1" style={{ color: s.color }}>{counts[s.status]}</div>
+                  <div className="text-sm font-bold text-gray-600">{STATUS_CONFIG[s.status].emoji} {STATUS_CONFIG[s.status].label}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">of {chapters.length} total</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Progress bar */}
+            {chapters.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-black text-gray-700">Overall — {selectedBatch.name}</span>
+                  <span className="text-sm font-black text-violet-600">
+                    {counts.completed}/{chapters.length} chapters ({Math.round((counts.completed / chapters.length) * 100)}%)
+                  </span>
+                </div>
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
+                  <div className="h-full bg-green-500 transition-all" style={{ width: `${(counts.completed / chapters.length) * 100}%` }} />
+                  <div className="h-full bg-blue-400 transition-all" style={{ width: `${(counts.in_progress / chapters.length) * 100}%` }} />
+                </div>
+                <div className="flex gap-4 mt-2 text-xs font-semibold text-gray-400">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />Completed</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />In Progress</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-200 inline-block" />Not Started</span>
+                </div>
+              </div>
+            )}
+
+            {/* Chapter table grouped by subject */}
+            {bySubject.size === 0 ? (
+              <div className="rounded-2xl p-16 text-center" style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' }}>
+                <div className="text-5xl mb-4">📚</div>
+                <div className="text-2xl font-black text-gray-900">No plan chapters for {selectedBatch.batch_type}</div>
+                <div className="text-gray-500 mt-2">Add chapters to the Planner first</div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {Array.from(bySubject).map(([subject, chaps]) => {
+                  const sc   = SUBJECT_COLORS[subject] ?? 'bg-gray-100 text-gray-700'
+                  const done = chaps.filter(c => c.status === 'completed').length
+                  return (
+                    <div key={subject} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between"
+                        style={{ background: 'linear-gradient(135deg,#fafafa,#f5f3ff)' }}>
+                        <div className="flex items-center gap-3">
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${sc}`}>{subject}</span>
+                          <span className="font-black text-gray-900">{chaps.length} chapters</span>
+                        </div>
+                        <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
+                          {done}/{chaps.length} done
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-gray-50/40 border-b border-gray-100 text-left">
+                              <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Chapter / Topic</th>
+                              <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Teacher</th>
+                              <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Month</th>
+                              <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Planned</th>
+                              <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Done</th>
+                              <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide min-w-[120px]">Progress</th>
+                              <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Pace</th>
+                              <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {chaps.map((c, i) => {
+                              const st       = STATUS_CONFIG[c.status]
+                              const barColor = c.status === 'completed' ? '#22c55e' : c.status === 'in_progress' ? '#3b82f6' : '#e5e7eb'
+                              let paceBg = '', paceText = '', paceLabel = ''
+                              if (c.done === 0)      { paceBg = 'bg-gray-100';   paceText = 'text-gray-400';   paceLabel = '⚪ No entry' }
+                              else if (c.pct >= 100) { paceBg = 'bg-blue-100';   paceText = 'text-blue-700';   paceLabel = '🔵 Fast' }
+                              else if (c.pct >= 80)  { paceBg = 'bg-green-100';  paceText = 'text-green-700';  paceLabel = '🟢 On Track' }
+                              else if (c.pct >= 50)  { paceBg = 'bg-yellow-100'; paceText = 'text-yellow-700'; paceLabel = '🟡 Slow' }
+                              else                   { paceBg = 'bg-red-100';    paceText = 'text-red-700';    paceLabel = '🔴 Behind' }
+                              return (
+                                <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors
+                                  ${c.status === 'completed' ? 'bg-green-50/30 hover:bg-green-50/60' :
+                                    c.status === 'in_progress' ? 'bg-blue-50/30 hover:bg-blue-50/60' :
+                                    'hover:bg-gray-50/60'}`}>
+                                  <td className="px-5 py-3.5 font-bold text-gray-900 max-w-[200px]">{c.topicName}</td>
+                                  <td className="px-5 py-3.5">
+                                    {c.teachers.length === 0
+                                      ? <span className="text-gray-300 text-xs">—</span>
+                                      : <div className="flex flex-col gap-0.5">
+                                          {c.teachers.map((t, ti) => (
+                                            <span key={ti} className="text-xs font-semibold text-gray-700 whitespace-nowrap">{t}</span>
+                                          ))}
+                                        </div>
+                                    }
+                                  </td>
+                                  <td className="px-5 py-3.5 text-xs font-semibold text-gray-500">{c.monthName}</td>
+                                  <td className="px-5 py-3.5 text-center font-black text-gray-700">{c.planned}</td>
+                                  <td className="px-5 py-3.5 text-center font-black text-gray-900 text-base">{c.done}</td>
+                                  <td className="px-5 py-3.5">
+                                    <div className="space-y-1">
+                                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden w-24">
+                                        <div className="h-full rounded-full transition-all" style={{ width: `${c.pct}%`, background: barColor }} />
+                                      </div>
+                                      <div className="text-xs font-semibold text-gray-400">{c.pct}%</div>
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-3.5">
+                                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${paceBg} ${paceText}`}>{paceLabel}</span>
+                                  </td>
+                                  <td className="px-5 py-3.5">
+                                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border ${st.bg} ${st.text} ${st.border}`}>
+                                      {st.emoji} {st.label}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     )
