@@ -33,6 +33,8 @@ type ChapStatus = 'completed' | 'in_progress' | 'not_started'
 function norm(s: string) {
   return s.replace(/^\[[^\]]*\]\s*/, '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
 }
+// batches table stores "JEE_EXCEL", lecture_plans stores "JEE Excel" — normalise both
+function normBT(s: string) { return s.toLowerCase().replace(/[_\s]/g, '') }
 
 const SUBJECT_COLORS: Record<string, string> = {
   Physics: 'bg-blue-100 text-blue-800', Chemistry: 'bg-purple-100 text-purple-800',
@@ -104,17 +106,17 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
     const batchTabs    = Array.from(batchTypeSet).sort()
     const selectedBT   = searchParams.batch ?? batchTabs[0] ?? ''
 
-    // Aggregate logs for selected batch_type
-    const logAgg = new Map<string, { done: number; isComplete: boolean; lastMonth: string | null }>()
+    // Aggregate logs for selected batch_type (normalise both sides: "JEE_EXCEL" ↔ "JEE Excel")
+    const logAgg = new Map<string, { done: number; isComplete: boolean; lastMonth: string | null; teachers: Set<string> }>()
     for (const log of logs) {
       const b = log.batches
       if (!b) continue
-      const bBase = b.batch_type
-      if (bBase !== selectedBT) continue
+      if (normBT(b.batch_type) !== normBT(selectedBT)) continue
       const key = `${log.subject}||${norm(log.chapter_name)}`
-      const ex  = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null }
+      const ex  = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null, teachers: new Set<string>() }
       ex.done += log.lectures_this_week
       if (log.notes?.includes('✅ Chapter completed.')) ex.isComplete = true
+      if (log.user_profiles?.name) ex.teachers.add(log.user_profiles.name)
       const month = new Date(log.submitted_at).toLocaleString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' })
       if (!ex.lastMonth) ex.lastMonth = month
       logAgg.set(key, ex)
@@ -133,12 +135,12 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
     const chapters = Array.from(chapMap).map(([key, { planned, monthName }]) => {
       const [subject, normTopic] = key.split('||')
       const topicName = plans.find(p => p.batch_type === selectedBT && norm(p.topic_name) === normTopic && p.subject === subject)?.topic_name ?? normTopic ?? ''
-      const agg = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null }
+      const agg = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null, teachers: new Set<string>() }
       let status: ChapStatus
       if (agg.isComplete || agg.done >= planned) status = 'completed'
       else if (agg.done > 0) status = 'in_progress'
       else status = 'not_started'
-      return { topicName: topicName.replace(/^\[[^\]]*\]\s*/, ''), subject: subject ?? '', monthName, planned, done: agg.done, status, completedMonth: agg.isComplete ? agg.lastMonth : null }
+      return { topicName: topicName.replace(/^\[[^\]]*\]\s*/, ''), subject: subject ?? '', monthName, planned, done: agg.done, status, completedMonth: agg.isComplete ? agg.lastMonth : null, teachers: Array.from(agg.teachers) }
     })
 
     const ORDER: Record<ChapStatus, number> = { in_progress: 0, not_started: 1, completed: 2 }
@@ -250,6 +252,7 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
                       <thead>
                         <tr className="bg-gray-50/40 border-b border-gray-100 text-left">
                           <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Chapter / Topic</th>
+                          <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Teacher</th>
                           <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Month</th>
                           <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Planned</th>
                           <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-center">Done</th>
@@ -269,6 +272,16 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
                                 c.status === 'in_progress' ? 'bg-blue-50/30 hover:bg-blue-50/60' :
                                 'hover:bg-gray-50/60'}`}>
                               <td className="px-5 py-3.5 font-bold text-gray-900 max-w-[220px]">{c.topicName}</td>
+                              <td className="px-5 py-3.5">
+                                {c.teachers.length === 0
+                                  ? <span className="text-gray-300 text-xs">—</span>
+                                  : <div className="flex flex-col gap-0.5">
+                                      {c.teachers.map((t, ti) => (
+                                        <span key={ti} className="text-xs font-semibold text-gray-700 whitespace-nowrap">{t}</span>
+                                      ))}
+                                    </div>
+                                }
+                              </td>
                               <td className="px-5 py-3.5 text-xs font-semibold text-gray-500">{c.monthName}</td>
                               <td className="px-5 py-3.5 text-center font-black text-gray-700">{c.planned}</td>
                               <td className="px-5 py-3.5 text-center font-black text-gray-900 text-base">{c.done}</td>
