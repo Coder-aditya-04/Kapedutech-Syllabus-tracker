@@ -67,7 +67,8 @@ export default function QuestionUploadForm({ profileId, assignments, recentUploa
         continue
       }
       const { data: { publicUrl } } = supabase.storage.from('question-files').getPublicUrl(path)
-      results.push({ url: publicUrl, name: file.name, type: ['pdf'].includes(ext) ? 'pdf' : 'image' })
+      const fileType = ext === 'pdf' ? 'pdf' : (ext === 'doc' || ext === 'docx') ? 'docx' : 'image'
+      results.push({ url: publicUrl, name: file.name, type: fileType })
     }
     return results
   }
@@ -219,7 +220,7 @@ export default function QuestionUploadForm({ profileId, assignments, recentUploa
             {/* File upload */}
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">
-                Upload Files <span className="text-gray-300">(PDF or Images — rough draft)</span>
+                Upload Files <span className="text-gray-300">(PDF, DOCX or Images — rough draft)</span>
               </label>
               <div
                 onClick={() => fileRef.current?.click()}
@@ -227,22 +228,26 @@ export default function QuestionUploadForm({ profileId, assignments, recentUploa
                 {files.length === 0 ? (
                   <>
                     <div className="text-2xl mb-1">📎</div>
-                    <div className="text-sm font-semibold text-gray-400">Click to upload PDF or images</div>
+                    <div className="text-sm font-semibold text-gray-400">Click to upload PDF, Word or images</div>
                     <div className="text-xs text-gray-300 mt-0.5">Multiple files supported</div>
                   </>
                 ) : (
                   <div className="space-y-1">
-                    {files.map((f, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-                        <span>{f.name.endsWith('.pdf') ? '📄' : '🖼️'}</span>
-                        <span className="truncate">{f.name}</span>
-                        <span className="text-gray-400 shrink-0">({(f.size / 1024).toFixed(0)} KB)</span>
-                      </div>
-                    ))}
+                    {files.map((f, i) => {
+                      const ext = f.name.split('.').pop()?.toLowerCase()
+                      const icon = ext === 'pdf' ? '📄' : (ext === 'doc' || ext === 'docx') ? '📝' : '🖼️'
+                      return (
+                        <div key={i} className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                          <span>{icon}</span>
+                          <span className="truncate">{f.name}</span>
+                          <span className="text-gray-400 shrink-0">({(f.size / 1024).toFixed(0)} KB)</span>
+                        </div>
+                      )
+                    })}
                     <div className="text-xs text-violet-600 font-bold mt-1">Click to add more</div>
                   </div>
                 )}
-                <input ref={fileRef} type="file" multiple accept="image/*,.pdf" className="hidden"
+                <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
                   onChange={e => setFiles(Array.from(e.target.files ?? []))} />
               </div>
             </div>

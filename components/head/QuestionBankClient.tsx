@@ -1,5 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 type TypedQ = { id: string; question_number: number; question_text: string; option_a: string | null; option_b: string | null; option_c: string | null; option_d: string | null; correct_answer: string | null; difficulty: string }
 type QFile  = { id: string; file_url: string; file_name: string; file_type: string; is_fair_copy: boolean; uploaded_by: string | null }
@@ -26,20 +27,26 @@ const SUBJECT_COLORS: Record<string, string> = {
 }
 
 export function QuestionBankClient({ uploads, centers }: Props) {
+  const supabase = createClient()
+  const fairFileRef = useRef<HTMLInputElement>(null)
+
   const [centerFilter, setCenterFilter] = useState<string>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [typingFor, setTypingFor] = useState<string | null>(null)
   const [typedQs, setTypedQs] = useState<Record<string, TypedQ[]>>(
     Object.fromEntries(uploads.map(u => [u.id, u.typed_questions]))
   )
+  const [fairFilesState, setFairFilesState] = useState<Record<string, QFile[]>>(
+    Object.fromEntries(uploads.map(u => [u.id, u.question_files.filter(f => f.is_fair_copy)]))
+  )
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [uploadingFairFor, setUploadingFairFor] = useState<string | null>(null)
   const [newQ, setNewQ] = useState({ question_text: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer: '', difficulty: 'medium' })
 
   // Filter by center
   const filtered = uploads.filter(u => {
     if (centerFilter !== 'all' && u.batches?.centers) {
-      const centerData = u.batches.centers as { name: string } | null
-      const centerName = centerData?.name ?? ''
+      const centerName = (u.batches.centers as { name: string } | null)?.name ?? ''
       const center = centers.find(c => c.id === centerFilter)
       if (center && centerName !== center.name) return false
     }
@@ -76,6 +83,56 @@ export function QuestionBankClient({ uploads, centers }: Props) {
     setTypedQs(prev => ({ ...prev, [uploadId]: (prev[uploadId] ?? []).filter(q => q.id !== qId) }))
   }
 
+  async function uploadFairFile(uploadId: string, file: File) {
+    setUploadingFairFor(uploadId)
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'pdf'
+    const path = `fair/${uploadId}/${Date.now()}_${file.name}`
+    const { error: storageErr } = await supabase.storage.from('question-files').upload(path, file)
+    if (storageErr) { setUploadingFairFor(null); alert('Upload failed: ' + storageErr.message); return }
+
+    const { data: { publicUrl } } = supabase.storage.from('question-files').getPublicUrl(path)
+    const fileType = ext === 'pdf' ? 'pdf' : ext === 'docx' || ext === 'doc' ? 'docx' : 'image'
+
+    const res = await fetch('/api/question-files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upload_id: uploadId, file_url: publicUrl, file_name: file.name, file_type: fileType, is_fair_copy: true }),
+    })
+    const { file: savedFile } = await res.json()
+    if (savedFile) {
+      setFairFilesState(prev => ({ ...prev, [uploadId]: [...(prev[uploadId] ?? []), savedFile] }))
+    }
+    setUploadingFairFor(null)
+  }
+
+  function downloadQuestions(up: Upload, tqs: TypedQ[]) {
+    const lines: string[] = [
+      `${up.subject} — ${up.chapter_name}`,
+      up.sub_topic ? `Sub-topic: ${up.sub_topic}` : '',
+      `Teacher: ${up.user_profiles?.name ?? ''}  |  Batch: ${up.batches?.name ?? ''}`,
+      `Date: ${new Date(up.question_date).toLocaleDateString('en-IN')}  |  Week: ${up.week_number}`,
+      '',
+      '─────────────────────────────────',
+      '',
+    ]
+    tqs.forEach(q => {
+      lines.push(`Q${q.question_number}. ${q.question_text}`)
+      if (q.option_a) lines.push(`   (A) ${q.option_a}`)
+      if (q.option_b) lines.push(`   (B) ${q.option_b}`)
+      if (q.option_c) lines.push(`   (C) ${q.option_c}`)
+      if (q.option_d) lines.push(`   (D) ${q.option_d}`)
+      if (q.correct_answer) lines.push(`   ✓ Answer: ${q.correct_answer}`)
+      lines.push('')
+    })
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${up.chapter_name.replace(/\s+/g, '_')}_Q${up.week_number}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (filtered.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center">
@@ -88,6 +145,15 @@ export function QuestionBankClient({ uploads, centers }: Props) {
 
   return (
     <div>
+      {/* Hidden file input for fair copy uploads */}
+      <input ref={fairFileRef} type="file" accept=".pdf,.doc,.docx,image/*" className="hidden"
+        onChange={async e => {
+          const file = e.target.files?.[0]
+          const uploadId = fairFileRef.current?.dataset.uploadId
+          if (file && uploadId) await uploadFairFile(uploadId, file)
+          if (fairFileRef.current) fairFileRef.current.value = ''
+        }} />
+
       {/* Center filter */}
       {centers.length > 1 && (
         <div className="flex items-center gap-2 flex-wrap mb-6">
@@ -132,9 +198,10 @@ export function QuestionBankClient({ uploads, centers }: Props) {
                 <div className="divide-y divide-gray-50">
                   {chapterUploads.map(up => {
                     const roughFiles = up.question_files.filter(f => !f.is_fair_copy)
-                    const fairFiles  = up.question_files.filter(f => f.is_fair_copy)
+                    const fairFiles  = fairFilesState[up.id] ?? []
                     const tqs = typedQs[up.id] ?? []
                     const isTyping = typingFor === up.id
+                    const isUploadingFair = uploadingFairFor === up.id
 
                     return (
                       <div key={up.id} className="p-5">
@@ -168,13 +235,13 @@ export function QuestionBankClient({ uploads, centers }: Props) {
                               📝 Rough Draft — {up.question_count} Qs
                             </div>
                             {roughFiles.length === 0 ? (
-                              <p className="text-xs text-gray-400 italic">No files uploaded</p>
+                              <p className="text-xs text-gray-400 italic">No files uploaded by teacher</p>
                             ) : (
                               <div className="space-y-1.5">
                                 {roughFiles.map(f => (
                                   <a key={f.id} href={f.file_url} target="_blank" rel="noopener noreferrer"
                                     className="flex items-center gap-2 text-xs font-semibold text-orange-700 hover:text-orange-900 group">
-                                    <span className="shrink-0">{f.file_type === 'pdf' ? '📄' : '🖼️'}</span>
+                                    <span className="shrink-0">{f.file_type === 'pdf' ? '📄' : f.file_type === 'docx' ? '📝' : '🖼️'}</span>
                                     <span className="truncate group-hover:underline">{f.file_name}</span>
                                     <span className="shrink-0 text-orange-400 group-hover:text-orange-600">↗</span>
                                   </a>
@@ -185,24 +252,45 @@ export function QuestionBankClient({ uploads, centers }: Props) {
 
                           {/* SECTION 2: Fair copy (DTP) */}
                           <div className="rounded-xl border border-green-200 bg-green-50/40 p-3">
-                            <div className="flex items-center justify-between mb-2">
+                            {/* Fair copy header with action buttons */}
+                            <div className="flex items-center justify-between mb-2 gap-1 flex-wrap">
                               <div className="text-xs font-black text-green-700 uppercase tracking-wide">
-                                ✅ Fair Copy (DTP) — {tqs.length + fairFiles.length} items
+                                ✅ Fair Copy — {tqs.length + fairFiles.length} items
                               </div>
-                              <button onClick={() => setTypingFor(isTyping ? null : up.id)}
-                                className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition-colors">
-                                {isTyping ? '✕ Cancel' : '+ Add Q'}
-                              </button>
+                              <div className="flex items-center gap-1">
+                                {tqs.length > 0 && (
+                                  <button onClick={() => downloadQuestions(up, tqs)}
+                                    className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
+                                    ⬇ Download
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    if (fairFileRef.current) {
+                                      fairFileRef.current.dataset.uploadId = up.id
+                                      fairFileRef.current.click()
+                                    }
+                                  }}
+                                  disabled={isUploadingFair}
+                                  className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50">
+                                  {isUploadingFair ? '⏫…' : '📎 File'}
+                                </button>
+                                <button onClick={() => setTypingFor(isTyping ? null : up.id)}
+                                  className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition-colors">
+                                  {isTyping ? '✕' : '+ Add Q'}
+                                </button>
+                              </div>
                             </div>
 
-                            {/* Fair files (PDFs/Word uploaded by DTP) */}
+                            {/* Fair files (PDF/DOCX uploaded by DTP) */}
                             {fairFiles.length > 0 && (
                               <div className="space-y-1 mb-2">
                                 {fairFiles.map(f => (
                                   <a key={f.id} href={f.file_url} target="_blank" rel="noopener noreferrer"
                                     className="flex items-center gap-2 text-xs font-semibold text-green-700 hover:underline">
-                                    <span>{f.file_type === 'pdf' ? '📄' : '🖼️'}</span>
+                                    <span>{f.file_type === 'pdf' ? '📄' : f.file_type === 'docx' ? '📝' : '🖼️'}</span>
                                     <span className="truncate">{f.file_name}</span>
+                                    <span className="text-green-400">↗</span>
                                   </a>
                                 ))}
                               </div>
@@ -237,7 +325,7 @@ export function QuestionBankClient({ uploads, centers }: Props) {
                             )}
 
                             {tqs.length === 0 && fairFiles.length === 0 && !isTyping && (
-                              <p className="text-xs text-gray-400 italic">No fair copy yet — click &quot;+ Add Q&quot; to type</p>
+                              <p className="text-xs text-gray-400 italic">No fair copy yet — upload a file or click &quot;+ Add Q&quot;</p>
                             )}
 
                             {/* Type new question form */}
