@@ -87,6 +87,24 @@ export type Database = {
         Update: Record<string, never>
         Relationships: []
       }
+      question_uploads: {
+        Row: { id: string; teacher_id: string; batch_id: string; subject: string; chapter_name: string; sub_topic: string | null; question_date: string; week_number: number; question_count: number; notes: string | null; status: string; created_at: string }
+        Insert: { id?: string; teacher_id: string; batch_id: string; subject: string; chapter_name: string; sub_topic?: string | null; question_date?: string; week_number?: number; question_count?: number; notes?: string | null; status?: string }
+        Update: { status?: string; notes?: string | null }
+        Relationships: []
+      }
+      question_files: {
+        Row: { id: string; upload_id: string; file_url: string; file_name: string; file_type: string; is_fair_copy: boolean; uploaded_by: string | null; created_at: string }
+        Insert: { id?: string; upload_id: string; file_url: string; file_name: string; file_type?: string; is_fair_copy?: boolean; uploaded_by?: string | null }
+        Update: { is_fair_copy?: boolean }
+        Relationships: []
+      }
+      typed_questions: {
+        Row: { id: string; upload_id: string; question_number: number; question_text: string; option_a: string | null; option_b: string | null; option_c: string | null; option_d: string | null; correct_answer: string | null; difficulty: string; typed_by: string | null; created_at: string }
+        Insert: { id?: string; upload_id: string; question_number: number; question_text: string; option_a?: string | null; option_b?: string | null; option_c?: string | null; option_d?: string | null; correct_answer?: string | null; difficulty?: string; typed_by?: string | null }
+        Update: { question_text?: string; option_a?: string | null; option_b?: string | null; option_c?: string | null; option_d?: string | null; correct_answer?: string | null; difficulty?: string }
+        Relationships: []
+      }
     }
     Views: { [_ in never]: never }
     Functions: { [_ in never]: never }

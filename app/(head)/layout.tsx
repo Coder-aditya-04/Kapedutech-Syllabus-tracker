@@ -17,6 +17,7 @@ const HEAD_NAV = [
   { href: '/head/teachers',          label: '👨‍🏫 Teachers'        },
   { href: '/head/mentorship',        label: '🤝 Mentorship'       },
   { href: '/head/holidays',          label: '🏖️ Holidays'         },
+  { href: '/head/questions',         label: '❓ Questions'         },
   { href: '/teacher/log',            label: '✏️ My Log'           },
 ]
 

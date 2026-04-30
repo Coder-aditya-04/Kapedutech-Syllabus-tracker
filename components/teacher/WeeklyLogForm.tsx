@@ -271,6 +271,18 @@ export default function WeeklyLogForm({ userId, userRole, userName }: Props) {
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-6 space-y-4 animate-fade-up">
 
+        {/* ── Quick links ── */}
+        <Link href="/teacher/questions"
+          className="flex items-center gap-3 bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-4 hover:shadow-md transition-shadow group">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+            style={{ background: 'linear-gradient(135deg,#7C3AED22,#1A73E822)' }}>❓</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-black text-gray-900">Daily Questions</div>
+            <div className="text-xs text-gray-400 font-medium">Upload today&apos;s 5 questions</div>
+          </div>
+          <span className="text-gray-300 group-hover:text-violet-500 transition-colors font-bold">→</span>
+        </Link>
+
         {/* ── Date ── */}
         <div className="bg-white/90 backdrop-blur rounded-2xl border border-white shadow-sm p-5">
           <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">📅 Log Date</label>
