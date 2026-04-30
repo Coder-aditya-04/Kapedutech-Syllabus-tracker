@@ -144,8 +144,8 @@ export default async function SchedulePage({ searchParams }: Props) {
 
         {/* Actions */}
         <div className="flex flex-wrap items-center gap-3 relative">
-          <GenerateButton weekStart={weekStart} includeSunday={includeSunday} onDone={() => {}} />
-          <AbsenceManager weekStart={weekStart} absences={absences} teachers={teachers} onDone={() => {}} />
+          <GenerateButton weekStart={weekStart} includeSunday={includeSunday} />
+          <AbsenceManager weekStart={weekStart} absences={absences} teachers={teachers} />
         </div>
       </div>
 

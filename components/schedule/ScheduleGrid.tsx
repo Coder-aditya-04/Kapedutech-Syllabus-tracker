@@ -86,7 +86,8 @@ function subjectShort(s: string) {
 }
 
 // ── Generate Button ────────────────────────────────────────────────────────
-function GenerateButton({ weekStart, includeSunday, onDone }: { weekStart: string; includeSunday: boolean; onDone: () => void }) {
+function GenerateButton({ weekStart, includeSunday }: { weekStart: string; includeSunday: boolean }) {
+  const router = useRouter()
   const [state, setState] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle')
   const [msg, setMsg] = useState('')
 
@@ -102,7 +103,7 @@ function GenerateButton({ weekStart, includeSunday, onDone }: { weekStart: strin
       if (res.ok) {
         setMsg(`✅ Generated ${json.cells} slots${json.clashes ? ` · ⚠️ ${json.clashes} clashes` : ''}`)
         setState('ok')
-        onDone()
+        router.refresh()
       } else {
         setMsg(json.error ?? 'Failed')
         setState('err')
@@ -133,12 +134,12 @@ function GenerateButton({ weekStart, includeSunday, onDone }: { weekStart: strin
 }
 
 // ── Absence Manager ────────────────────────────────────────────────────────
-function AbsenceManager({ weekStart, absences, teachers, onDone }: {
+function AbsenceManager({ weekStart, absences, teachers }: {
   weekStart: string
   absences: Absence[]
   teachers: Teacher[]
-  onDone: () => void
 }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [teacherId, setTeacherId] = useState('')
   const [dayName, setDayName] = useState('Monday')
@@ -156,7 +157,7 @@ function AbsenceManager({ weekStart, absences, teachers, onDone }: {
       body: JSON.stringify({ weekStart, teacherId, dayName, slotIndex }),
     })
     setSaving(false)
-    onDone()
+    router.refresh()
   }
 
   async function removeAbsence(id: string) {
@@ -165,7 +166,7 @@ function AbsenceManager({ weekStart, absences, teachers, onDone }: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     })
-    onDone()
+    router.refresh()
   }
 
   return (
