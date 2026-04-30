@@ -1,6 +1,5 @@
 'use client'
 import { useState, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 type TypedQ = { id: string; question_number: number; question_text: string; option_a: string | null; option_b: string | null; option_c: string | null; option_d: string | null; correct_answer: string | null; difficulty: string }
 type QFile  = { id: string; file_url: string; file_name: string; file_type: string; is_fair_copy: boolean; uploaded_by: string | null }
@@ -27,7 +26,6 @@ const SUBJECT_COLORS: Record<string, string> = {
 }
 
 export function QuestionBankClient({ uploads, centers }: Props) {
-  const supabase = createClient()
   const fairFileRef = useRef<HTMLInputElement>(null)
 
   const [centerFilter, setCenterFilter] = useState<string>('all')
@@ -85,20 +83,13 @@ export function QuestionBankClient({ uploads, centers }: Props) {
 
   async function uploadFairFile(uploadId: string, file: File) {
     setUploadingFairFor(uploadId)
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'pdf'
-    const path = `fair/${uploadId}/${Date.now()}_${file.name}`
-    const { error: storageErr } = await supabase.storage.from('question-files').upload(path, file)
-    if (storageErr) { setUploadingFairFor(null); alert('Upload failed: ' + storageErr.message); return }
-
-    const { data: { publicUrl } } = supabase.storage.from('question-files').getPublicUrl(path)
-    const fileType = ext === 'pdf' ? 'pdf' : ext === 'docx' || ext === 'doc' ? 'docx' : 'image'
-
-    const res = await fetch('/api/question-files', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ upload_id: uploadId, file_url: publicUrl, file_name: file.name, file_type: fileType, is_fair_copy: true }),
-    })
-    const { file: savedFile } = await res.json()
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('upload_id', uploadId)
+    fd.append('is_fair_copy', 'true')
+    const res = await fetch('/api/question-file-upload', { method: 'POST', body: fd })
+    const { file: savedFile, error: err } = await res.json()
+    if (err) { setUploadingFairFor(null); alert('Upload failed: ' + err); return }
     if (savedFile) {
       setFairFilesState(prev => ({ ...prev, [uploadId]: [...(prev[uploadId] ?? []), savedFile] }))
     }

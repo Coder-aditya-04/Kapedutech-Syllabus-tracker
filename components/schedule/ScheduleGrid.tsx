@@ -177,7 +177,7 @@ function AbsenceManager({ weekStart, absences, teachers }: {
       </button>
 
       {open && (
-        <div className="absolute z-40 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-xl p-4">
+        <div className="fixed z-50 right-4 top-24 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 max-h-[80vh] overflow-y-auto">
           <div className="font-black text-gray-900 mb-3">Mark Teacher Absent</div>
 
           <select value={teacherId} onChange={e => setTeacherId(e.target.value)}

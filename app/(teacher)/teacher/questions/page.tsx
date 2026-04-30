@@ -16,7 +16,7 @@ export default async function TeacherQuestionsPage() {
 
   const admin = createAdminClient()
 
-  // Get teacher's active batch assignments
+  // Teacher's active batch assignments
   const { data: rawAssign } = await admin
     .from('teacher_batch_assignments')
     .select('batch_id, subject, batches(name)')
@@ -30,7 +30,25 @@ export default async function TeacherQuestionsPage() {
     subject: a.subject,
   }))
 
-  // Get recent question uploads for this teacher (last 30)
+  // Chapter suggestions: unique chapters from this teacher's previous uploads
+  const { data: rawChapters } = await admin
+    .from('question_uploads')
+    .select('chapter_name, subject')
+    .eq('teacher_id', profile.id)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  const seen = new Set<string>()
+  const chapters: Array<{ subject: string; chapter_name: string }> = []
+  for (const c of rawChapters ?? []) {
+    const key = `${c.subject}||${c.chapter_name}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      chapters.push({ subject: c.subject, chapter_name: c.chapter_name })
+    }
+  }
+
+  // Recent uploads for this teacher (last 30)
   const { data: rawUploads } = await admin
     .from('question_uploads')
     .select('id, chapter_name, sub_topic, subject, question_count, question_date, status, notes, batches(name), question_files(id, file_url, file_name, file_type, is_fair_copy)')
@@ -42,6 +60,7 @@ export default async function TeacherQuestionsPage() {
     <QuestionUploadForm
       profileId={profile.id}
       assignments={assignments}
+      chapters={chapters}
       recentUploads={(rawUploads ?? []) as unknown as Parameters<typeof QuestionUploadForm>[0]['recentUploads']}
     />
   )
