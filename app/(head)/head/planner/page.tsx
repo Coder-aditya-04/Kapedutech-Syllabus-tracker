@@ -23,6 +23,9 @@ const TEMPLATES = [
   { key: 'ssc-8th',        label: 'SSC 8th',         class: '8th',  color: 'bg-green-50 border-green-200 text-green-700' },
   { key: 'ssc-9th',        label: 'SSC 9th',         class: '9th',  color: 'bg-teal-50 border-teal-200 text-teal-700' },
   { key: 'ssc-10th',       label: 'SSC 10th',        class: '10th', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+  { key: 'cbse-8th',       label: 'CBSE 8th',        class: '8th',  color: 'bg-pink-50 border-pink-200 text-pink-700' },
+  { key: 'cbse-9th',       label: 'CBSE 9th',        class: '9th',  color: 'bg-rose-50 border-rose-200 text-rose-700' },
+  { key: 'cbse-10th',      label: 'CBSE 10th',       class: '10th', color: 'bg-red-50 border-red-200 text-red-700' },
 ]
 
 // Estimate end date: 1 lecture per working day, Sundays off (Mon–Sat)
