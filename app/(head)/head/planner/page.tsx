@@ -49,7 +49,7 @@ const SUBJECT_COLORS: Record<string, string> = {
   Biology:     'bg-lime-100 text-lime-800 border-lime-200',
 }
 
-interface EditState { id: string; topic_name: string; planned_lectures: number; start_date: string }
+interface EditState { id: string; month_name: string; topic_name: string; planned_lectures: number; start_date: string }
 
 interface AddState {
   batch_type: string; subject: string; class_level: string
@@ -118,6 +118,7 @@ export default function PlannerPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: editRow.id,
+        month_name: editRow.month_name,
         topic_name: editRow.topic_name.trim(),
         planned_lectures: editRow.planned_lectures,
         start_date: editRow.start_date || null,
@@ -319,10 +320,16 @@ export default function PlannerPage() {
                     const isEditing = editRow?.id === p.id
                     return (
                       <tr key={p.id} className={`border-b border-gray-50 last:border-0 transition-colors ${isEditing ? 'bg-violet-50' : 'hover:bg-gray-50/60'}`}>
-                        <td className="px-5 py-3 font-bold text-gray-700 text-xs">{p.month_name}</td>
-
                         {isEditing ? (
                           <>
+                            <td className="px-2 py-2">
+                              <select value={editRow.month_name}
+                                onChange={e => setEditRow(r => r ? { ...r, month_name: e.target.value } : r)}
+                                className="w-full px-2 py-1.5 border border-violet-300 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-violet-500"
+                              >
+                                {MONTH_ORDER.map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                            </td>
                             <td className="px-2 py-2">
                               <input type="text" value={editRow.topic_name}
                                 onChange={e => setEditRow(r => r ? { ...r, topic_name: e.target.value } : r)}
@@ -360,6 +367,7 @@ export default function PlannerPage() {
                           </>
                         ) : (
                           <>
+                            <td className="px-5 py-3 font-bold text-gray-700 text-xs">{p.month_name}</td>
                             <td className="px-5 py-3 text-gray-700 font-medium">{p.topic_name}</td>
                             <td className="px-5 py-3 text-center font-black text-gray-900 text-base">{p.planned_lectures}</td>
                             <td className="px-5 py-3 text-gray-400 text-xs font-semibold">
@@ -375,7 +383,7 @@ export default function PlannerPage() {
                             <td className="px-5 py-3">
                               <div className="flex gap-1.5">
                                 <button
-                                  onClick={() => setEditRow({ id: p.id, topic_name: p.topic_name, planned_lectures: p.planned_lectures, start_date: p.start_date ?? '' })}
+                                  onClick={() => setEditRow({ id: p.id, month_name: p.month_name, topic_name: p.topic_name, planned_lectures: p.planned_lectures, start_date: p.start_date ?? '' })}
                                   className="px-2.5 py-1 text-xs font-bold text-gray-500 bg-gray-100 rounded-lg hover:bg-violet-100 hover:text-violet-700 transition-colors"
                                 >
                                   Edit
