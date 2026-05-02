@@ -18,6 +18,13 @@ interface RawLog {
 }
 interface RawOffDay  { batch_id: string; day_name: string }
 
+function normalizeBatchType(raw: string): 'JEE' | 'NEET' | 'Foundation' {
+  const u = (raw ?? '').toUpperCase()
+  if (u.includes('JEE') || u.includes('MHT')) return 'JEE'
+  if (u.includes('NEET')) return 'NEET'
+  return 'Foundation'
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
@@ -66,7 +73,7 @@ export async function POST(req: NextRequest) {
       return {
         id: b.id,
         name: b.name,
-        batchType: (b.batch_type ?? 'JEE') as BatchInfo['batchType'],
+        batchType: normalizeBatchType(b.batch_type ?? ''),
         centerName: b.centers?.name ?? '',
         timeSlot: (b.time_slot ?? 'Morning') as BatchInfo['timeSlot'],
         slotsPerDay: b.slots_per_day ?? 3,
@@ -92,13 +99,14 @@ export async function POST(req: NextRequest) {
     // planned per batchType+subject
     const planned: Record<string, Record<string, number>> = {}
     for (const p of (plans ?? [])) {
-      if (!planned[p.batch_type]) planned[p.batch_type] = {}
-      planned[p.batch_type][p.subject] = (planned[p.batch_type][p.subject] ?? 0) + p.planned_lectures
+      const nbt = normalizeBatchType(p.batch_type)
+      if (!planned[nbt]) planned[nbt] = {}
+      planned[nbt][p.subject] = (planned[nbt][p.subject] ?? 0) + p.planned_lectures
     }
     // done per batchType+subject
     const done: Record<string, Record<string, number>> = {}
     for (const l of (logs ?? []) as unknown as RawLog[]) {
-      const bt = l.batches?.batch_type ?? 'JEE'
+      const bt = normalizeBatchType(l.batches?.batch_type ?? '')
       if (!done[bt]) done[bt] = {}
       done[bt][l.subject] = (done[bt][l.subject] ?? 0) + l.lectures_this_week
     }

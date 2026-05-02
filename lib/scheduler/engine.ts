@@ -21,11 +21,14 @@ function getWeekDates(weekStart: string, includeSunday: boolean): string[] {
   return dates
 }
 
-// Sort subjects by lag descending, rotate by dayIndex for variety
+// Sort subjects by lag descending, right-rotate by dayIndex
+// Right-rotation: Mon [P,C,M] -> Tue [M,P,C] -> Wed [C,M,P]
 function sortedRotate(subjects: string[], dayIndex: number, lag: Record<string, number>): string[] {
   const sorted = [...subjects].sort((a, b) => (lag[b] ?? 0) - (lag[a] ?? 0))
-  const shift = dayIndex % sorted.length
-  return [...sorted.slice(shift), ...sorted.slice(0, shift)]
+  const n = sorted.length
+  if (n === 0) return []
+  const shift = dayIndex % n
+  return shift === 0 ? sorted : [...sorted.slice(n - shift), ...sorted.slice(0, n - shift)]
 }
 
 function getSubjectsForDay(
@@ -38,17 +41,16 @@ function getSubjectsForDay(
 
   if (batch.batchType === 'JEE') {
     const subjects = JEE_BASE.filter(s => avail.includes(s))
-    return sortedRotate(subjects, dayIndex, lag).slice(0, n)
+    const rotated = sortedRotate(subjects, dayIndex, lag)
+    return rotated.slice(0, Math.min(n, subjects.length))
   }
 
   if (batch.batchType === 'NEET') {
     const pc = NEET_PC.filter(s => avail.includes(s))
     const bio = NEET_BIO.filter(s => avail.includes(s))
-    // Bio alternates by day, sorted by lag so higher-lag bio comes first
     const sortedBio = [...bio].sort((a, b) => (lag[b] ?? 0) - (lag[a] ?? 0))
     const bioSubject = sortedBio[dayIndex % Math.max(sortedBio.length, 1)]
     const sortedPC = sortedRotate(pc, dayIndex, lag)
-    // Slots: [PC[0], PC[1], bio, bio?] up to n
     const day: string[] = []
     for (let i = 0; i < n; i++) {
       if (i < sortedPC.length) day.push(sortedPC[i])
@@ -57,14 +59,11 @@ function getSubjectsForDay(
     return day.slice(0, n)
   }
 
-  // Foundation — fixed rotation through 7 subjects
+  // Foundation -- rotate through available subjects, no repeats within same day
   const fBase = FOUND_ROT.filter(s => avail.includes(s))
   if (fBase.length === 0) return avail.slice(0, n)
-  const result: string[] = []
-  for (let i = 0; i < n; i++) {
-    result.push(fBase[(dayIndex * n + i) % fBase.length])
-  }
-  return result
+  const rotated = sortedRotate(fBase, dayIndex, lag)
+  return rotated.slice(0, Math.min(n, fBase.length))
 }
 
 function isAbsent(tid: string, day: string, slot: number, absences: TeacherAbsence[]) {
@@ -73,10 +72,6 @@ function isAbsent(tid: string, day: string, slot: number, absences: TeacherAbsen
   )
 }
 
-// A teacher clashes if already assigned at same date+slotIndex
-// (We don't need to check timeSlot — slotIndex 0 of Morning ≠ slotIndex 0 of Afternoon
-// because Morning batches and Afternoon batches occupy different real-time windows.
-// So clash key = teacherId + date + timeSlot + slotIndex)
 function isBusy(
   tid: string, date: string, slotIndex: number, timeSlot: string,
   existing: ScheduleCell[], batches: BatchInfo[]
