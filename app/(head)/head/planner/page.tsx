@@ -17,17 +17,6 @@ interface PlanRow {
 const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const ALL_SUBJECTS = ['Physics','Chemistry','Botany','Zoology','Mathematics','Biology']
 
-const TEMPLATES = [
-  { key: 'mht-cet-excel',  label: 'MHT-CET Excel',  class: '12th', color: 'bg-orange-50 border-orange-200 text-orange-700' },
-  { key: 'mht-cet-growth', label: 'MHT-CET Growth', class: '11th', color: 'bg-amber-50 border-amber-200 text-amber-700' },
-  { key: 'ssc-8th',        label: 'SSC 8th',         class: '8th',  color: 'bg-green-50 border-green-200 text-green-700' },
-  { key: 'ssc-9th',        label: 'SSC 9th',         class: '9th',  color: 'bg-teal-50 border-teal-200 text-teal-700' },
-  { key: 'ssc-10th',       label: 'SSC 10th',        class: '10th', color: 'bg-blue-50 border-blue-200 text-blue-700' },
-  { key: 'cbse-8th',       label: 'CBSE 8th',        class: '8th',  color: 'bg-pink-50 border-pink-200 text-pink-700' },
-  { key: 'cbse-9th',       label: 'CBSE 9th',        class: '9th',  color: 'bg-rose-50 border-rose-200 text-rose-700' },
-  { key: 'cbse-10th',      label: 'CBSE 10th',       class: '10th', color: 'bg-red-50 border-red-200 text-red-700' },
-]
-
 // Estimate end date: 1 lecture per working day, Sundays off (Mon–Sat)
 function calcEndDate(startDate: string | null, plannedLectures: number): string {
   if (!startDate || !plannedLectures) return '—'
@@ -65,24 +54,6 @@ export default function PlannerPage() {
   const [editRow, setEditRow]           = useState<EditState | null>(null)
   const [saving, setSaving]             = useState(false)
   const [saveError, setSaveError]       = useState('')
-
-  // Template import
-  const [seedingKey, setSeedingKey] = useState<string | null>(null)
-  const [seedMsg, setSeedMsg]       = useState('')
-
-  async function importTemplate(key: string) {
-    setSeedingKey(key); setSeedMsg('')
-    const res = await fetch('/api/seed-planner', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ templateKey: key }),
-    })
-    const json = await res.json().catch(() => ({}))
-    setSeedingKey(null)
-    if (!res.ok) { setSeedMsg(json.error ?? 'Import failed'); return }
-    setSeedMsg(`✅ Imported ${json.inserted} topics`)
-    await loadPlans()
-  }
 
   // Add-chapter modal
   const [showAdd, setShowAdd]   = useState(false)
@@ -210,27 +181,6 @@ export default function PlannerPage() {
         >
           ➕ Add Chapter
         </button>
-      </div>
-
-      {/* Import Templates */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-black text-gray-800 text-sm">📥 Import Planner Templates</h2>
-          {seedMsg && <span className="text-xs font-semibold text-green-600">{seedMsg}</span>}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {TEMPLATES.map(t => (
-            <button key={t.key}
-              disabled={seedingKey === t.key}
-              onClick={() => importTemplate(t.key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all hover:opacity-80 disabled:opacity-50 ${t.color}`}
-            >
-              {seedingKey === t.key ? '⏳' : '📥'} {t.label}
-              <span className="opacity-60">({t.class})</span>
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-gray-400 mt-2">Re-importing a template replaces all existing entries for that batch type.</p>
       </div>
 
       {/* Batch type tabs */}
