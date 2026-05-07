@@ -58,14 +58,25 @@ export default function QuestionUploadForm({ assignments, recentUploads, chapter
   async function uploadFilesViaServer(uploadId: string): Promise<QFile[]> {
     const savedFiles: QFile[] = []
     for (const file of files) {
+      if (file.size > 8 * 1024 * 1024) {
+        setError(`"${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Please compress the image to under 8 MB.`)
+        continue
+      }
       const fd = new FormData()
       fd.append('file', file)
       fd.append('upload_id', uploadId)
       fd.append('is_fair_copy', 'false')
       const res = await fetch('/api/question-file-upload', { method: 'POST', body: fd })
-      const { file: saved, error: err } = await res.json()
-      if (err) { console.error('File upload error:', err); continue }
-      if (saved) savedFiles.push(saved)
+      if (!res.ok) {
+        const errText = await res.text().catch(() => `HTTP ${res.status}`)
+        setError(res.status === 413
+          ? `"${file.name}" is too large. Compress the image and try again.`
+          : `Upload failed: ${errText.substring(0, 120)}`)
+        continue
+      }
+      const json = await res.json().catch(() => ({ error: 'Invalid server response' }))
+      if (json.error) { setError(`Upload error: ${json.error}`); continue }
+      if (json.file) savedFiles.push(json.file)
     }
     return savedFiles
   }

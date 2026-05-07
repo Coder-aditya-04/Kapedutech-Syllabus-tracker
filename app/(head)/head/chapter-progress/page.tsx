@@ -33,7 +33,16 @@ function norm(s: string) {
   return s.replace(/^\[[^\]]*\]\s*/, '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
 }
 // batches table stores "JEE_EXCEL", lecture_plans stores "JEE Excel" — normalise both
-function normBT(s: string) { return s.toLowerCase().replace(/[_\s]/g, '') }
+function normBT(s: string) { return s.toLowerCase().replace(/[_\s-]/g, '') }
+
+// MHT-CET batches store 'MHT_CET', but plans store 'MHT-CET Excel' (class 12) or 'MHT-CET Growth' (class 11).
+// Strip 'excel'/'growth' suffix when comparing, then use class_level as tiebreaker.
+function planMatchesBatch(plan: { batch_type: string; class_level: string }, batch: { batch_type: string; class_level: string }): boolean {
+  if (normBT(plan.batch_type) === normBT(batch.batch_type)) return true
+  const planCoarse = normBT(plan.batch_type).replace(/excel$/, '').replace(/growth$/, '')
+  if (planCoarse === normBT(batch.batch_type)) return plan.class_level === batch.class_level
+  return false
+}
 
 const SUBJECT_COLORS: Record<string, string> = {
   Physics: 'bg-blue-100 text-blue-800', Chemistry: 'bg-purple-100 text-purple-800',
@@ -126,7 +135,7 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
     const chapMap = new Map<string, { planned: number; monthName: string }>()
     if (selectedBatch) {
       for (const p of plans) {
-        if (normBT(p.batch_type) !== normBT(selectedBatch.batch_type)) continue
+        if (!planMatchesBatch(p, selectedBatch)) continue
         const key = `${p.subject}||${norm(p.topic_name)}`
         const ex  = chapMap.get(key)
         if (ex) ex.planned += p.planned_lectures
@@ -137,7 +146,7 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
     const chapters = Array.from(chapMap).map(([key, { planned, monthName }]) => {
       const [subject, normTopic] = key.split('||')
       const topicName = plans.find(p =>
-        selectedBatch && normBT(p.batch_type) === normBT(selectedBatch.batch_type) &&
+        selectedBatch && planMatchesBatch(p, selectedBatch) &&
         norm(p.topic_name) === normTopic && p.subject === subject
       )?.topic_name ?? normTopic ?? ''
       const agg = logAgg.get(key) ?? { done: 0, isComplete: false, lastMonth: null, teachers: new Set<string>() }
@@ -291,11 +300,12 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
                               const st       = STATUS_CONFIG[c.status]
                               const barColor = c.status === 'completed' ? '#22c55e' : c.status === 'in_progress' ? '#3b82f6' : '#e5e7eb'
                               let paceBg = '', paceText = '', paceLabel = ''
-                              if (c.done === 0)      { paceBg = 'bg-gray-100';   paceText = 'text-gray-400';   paceLabel = '⚪ No entry' }
-                              else if (c.pct >= 100) { paceBg = 'bg-blue-100';   paceText = 'text-blue-700';   paceLabel = '🔵 Fast' }
-                              else if (c.pct >= 80)  { paceBg = 'bg-green-100';  paceText = 'text-green-700';  paceLabel = '🟢 On Track' }
-                              else if (c.pct >= 50)  { paceBg = 'bg-yellow-100'; paceText = 'text-yellow-700'; paceLabel = '🟡 Slow' }
-                              else                   { paceBg = 'bg-red-100';    paceText = 'text-red-700';    paceLabel = '🔴 Behind' }
+                              if (c.done === 0)           { paceBg = 'bg-gray-100';   paceText = 'text-gray-400';   paceLabel = '⚪ No entry' }
+                              else if (c.done > c.planned){ paceBg = 'bg-red-100';    paceText = 'text-red-700';    paceLabel = '🔴 Slow' }
+                              else if (c.pct >= 100)      { paceBg = 'bg-blue-100';   paceText = 'text-blue-700';   paceLabel = '🔵 Fast' }
+                              else if (c.pct >= 80)       { paceBg = 'bg-green-100';  paceText = 'text-green-700';  paceLabel = '🟢 On Track' }
+                              else if (c.pct >= 50)       { paceBg = 'bg-yellow-100'; paceText = 'text-yellow-700'; paceLabel = '🟡 Slow' }
+                              else                        { paceBg = 'bg-red-100';    paceText = 'text-red-700';    paceLabel = '🔴 Behind' }
                               return (
                                 <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors
                                   ${c.status === 'completed' ? 'bg-green-50/30 hover:bg-green-50/60' :
@@ -382,7 +392,7 @@ export default async function ChapterProgressPage({ searchParams }: Props) {
 
       // Get planned chapters for this batch_type + subject
       const plannedChapters = plans.filter(p =>
-        p.batch_type === selectedBatch.batch_type &&
+        planMatchesBatch(p, selectedBatch) &&
         p.subject === subject
       )
 

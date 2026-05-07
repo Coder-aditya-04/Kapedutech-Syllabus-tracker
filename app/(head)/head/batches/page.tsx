@@ -34,6 +34,12 @@ const BATCH_TYPE_LABELS: Record<string, string> = {
   JEE_EXCEL:   'JEE Excel',
   JEE_GROWTH:  'JEE Growth',
   MHT_CET:     'MHT-CET',
+  SSC_8TH:     'SSC 8th',
+  SSC_9TH:     'SSC 9th',
+  SSC_10TH:    'SSC 10th',
+  CBSE_8TH:    'CBSE 8th',
+  CBSE_9TH:    'CBSE 9th',
+  CBSE_10TH:   'CBSE 10th',
 }
 
 const BATCH_TYPE_COLORS: Record<string, string> = {
@@ -42,6 +48,12 @@ const BATCH_TYPE_COLORS: Record<string, string> = {
   JEE_EXCEL:   'bg-emerald-100 text-emerald-800 border-emerald-200',
   JEE_GROWTH:  'bg-emerald-50 text-emerald-700 border-emerald-200',
   MHT_CET:     'bg-slate-100 text-slate-700 border-slate-200',
+  SSC_8TH:     'bg-emerald-100 text-emerald-800 border-emerald-200',
+  SSC_9TH:     'bg-teal-100 text-teal-800 border-teal-200',
+  SSC_10TH:    'bg-cyan-100 text-cyan-800 border-cyan-200',
+  CBSE_8TH:    'bg-pink-100 text-pink-800 border-pink-200',
+  CBSE_9TH:    'bg-rose-100 text-rose-800 border-rose-200',
+  CBSE_10TH:   'bg-red-100 text-red-800 border-red-200',
 }
 
 interface FormState {
