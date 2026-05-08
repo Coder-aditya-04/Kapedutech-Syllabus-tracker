@@ -21,8 +21,9 @@ export async function POST(req: NextRequest) {
   }
 
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'bin'
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
   const prefix = isFairCopy ? 'fair' : profile.id
-  const path = `${prefix}/${uploadId}/${Date.now()}_${file.name}`
+  const path = `${prefix}/${uploadId}/${Date.now()}_${safeName}`
 
   const admin = createAdminClient()
   const bytes = await file.arrayBuffer()

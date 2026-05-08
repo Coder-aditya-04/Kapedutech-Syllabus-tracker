@@ -20,8 +20,9 @@ interface Batch {
   centers: { name: string }
 }
 
-const NEET_SUBJECTS = ['Physics', 'Chemistry', 'Botany', 'Zoology']
-const JEE_SUBJECTS  = ['Physics', 'Chemistry', 'Mathematics']
+const NEET_SUBJECTS       = ['Physics', 'Chemistry', 'Botany', 'Zoology']
+const JEE_SUBJECTS        = ['Physics', 'Chemistry', 'Mathematics']
+const FOUNDATION_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology']
 
 export default function TeacherEditPage() {
   const { id } = useParams<{ id: string }>()
@@ -56,8 +57,10 @@ export default function TeacherEditPage() {
   useEffect(() => { load() }, [load])
 
   const selectedBatch      = batches.find(b => b.id === addBatchId)
-  const availableSubjects  = selectedBatch
-    ? (selectedBatch.batch_type.startsWith('NEET') ? NEET_SUBJECTS : JEE_SUBJECTS)
+  const availableSubjects = selectedBatch
+    ? selectedBatch.batch_type.startsWith('NEET') ? NEET_SUBJECTS
+      : (selectedBatch.batch_type.startsWith('SSC') || selectedBatch.batch_type.startsWith('CBSE')) ? FOUNDATION_SUBJECTS
+      : JEE_SUBJECTS
     : []
 
   async function addAssignment() {

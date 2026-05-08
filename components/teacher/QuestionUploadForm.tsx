@@ -57,9 +57,11 @@ export default function QuestionUploadForm({ assignments, recentUploads, chapter
 
   async function uploadFilesViaServer(uploadId: string): Promise<QFile[]> {
     const savedFiles: QFile[] = []
+    const errors: string[] = []
+
     for (const file of files) {
       if (file.size > 8 * 1024 * 1024) {
-        setError(`"${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Please compress the image to under 8 MB.`)
+        errors.push(`"${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Compress to under 8 MB.`)
         continue
       }
       const fd = new FormData()
@@ -68,15 +70,23 @@ export default function QuestionUploadForm({ assignments, recentUploads, chapter
       fd.append('is_fair_copy', 'false')
       const res = await fetch('/api/question-file-upload', { method: 'POST', body: fd })
       if (!res.ok) {
-        const errText = await res.text().catch(() => `HTTP ${res.status}`)
-        setError(res.status === 413
-          ? `"${file.name}" is too large. Compress the image and try again.`
-          : `Upload failed: ${errText.substring(0, 120)}`)
+        const errMsg = res.status === 413
+          ? `"${file.name}" is too large. Compress and try again.`
+          : await res.json().then((j: { error?: string }) => `"${file.name}" failed: ${j.error ?? `HTTP ${res.status}`}`)
+              .catch(() => `"${file.name}" failed: HTTP ${res.status}`)
+        errors.push(errMsg)
         continue
       }
       const json = await res.json().catch(() => ({ error: 'Invalid server response' }))
-      if (json.error) { setError(`Upload error: ${json.error}`); continue }
+      if (json.error) { errors.push(`"${file.name}": ${json.error}`); continue }
       if (json.file) savedFiles.push(json.file)
+    }
+
+    if (savedFiles.length === 0 && errors.length > 0) {
+      throw new Error(errors[0])
+    }
+    if (errors.length > 0) {
+      setError(`Some files failed: ${errors.join('; ')}`)
     }
     return savedFiles
   }
@@ -253,7 +263,7 @@ export default function QuestionUploadForm({ assignments, recentUploads, chapter
                     </div>
                   )}
                   <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
-                    onChange={e => setFiles(Array.from(e.target.files ?? []))} />
+                    onChange={e => setFiles(prev => [...prev, ...Array.from(e.target.files ?? [])])} />
                 </div>
               </div>
 
