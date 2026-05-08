@@ -36,13 +36,20 @@
 
 /* ── Base font size ───────────────────────────────────── */
 @layer base {
-  html { font-size: 16px; }
+  html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
   * { @apply border-border; }
   body {
     @apply text-foreground;
     font-size: 1rem;
     background: #ede9f9;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   h1 { font-size: 1.875rem; font-weight: 800; }
   h2 { font-size: 1.5rem;   font-weight: 700; }
@@ -159,3 +166,32 @@
 
 /* ── Text balance ─────────────────────────────────────── */
 .text-balance { text-wrap: balance; }
+
+/* ── Background blobs — GPU composited ───────────────── */
+.bg-blob {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Disable expensive blobs on mobile to prevent lag */
+@media (max-width: 768px) {
+  .bg-blob { display: none; }
+}
+
+/* Reduce motion for accessibility + battery */
+@media (prefers-reduced-motion: reduce) {
+  .bg-blob { animation: none !important; }
+  .animate-fade-up,
+  .animate-fade-in,
+  .animate-scale-in,
+  .animate-slide-right { animation: none !important; }
+  .stagger > * { animation: none !important; }
+}
+
+/* ── Mobile touch targets ─────────────────────────────── */
+@media (max-width: 768px) {
+  button, a {
+    min-height: 44px;
+  }
+}
