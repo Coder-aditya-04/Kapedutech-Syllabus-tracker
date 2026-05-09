@@ -46,10 +46,15 @@ export default async function HeadQuestionsPage({ searchParams }: Props) {
   const uploads = (rawUploads ?? []) as unknown as Parameters<typeof QuestionBankClient>[0]['uploads']
   const centers = (rawCenters ?? []) as Array<{ id: string; name: string }>
 
-  // Count stats
-  const total    = uploads.length
-  const pending  = uploads.filter(u => u.status === 'uploaded').length
-  const dtpDone  = uploads.filter(u => u.status === 'dtp_done').length
+  // Count stats — derive effective status same way as the client:
+  // done if status = dtp_done OR fair copy files already exist
+  const total   = uploads.length
+  const dtpDone = uploads.filter(u =>
+    u.status === 'dtp_done' ||
+    (u as unknown as { question_files: { is_fair_copy: boolean }[] })
+      .question_files.some(f => f.is_fair_copy)
+  ).length
+  const pending = total - dtpDone
 
   // Unique subjects across all uploads
   const subjects = Array.from(new Set(uploads.map(u => u.subject))).sort()

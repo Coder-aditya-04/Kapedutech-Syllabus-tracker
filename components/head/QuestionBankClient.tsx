@@ -175,6 +175,7 @@ export function QuestionBankClient({ uploads, centers }: Props) {
           const sc = SUBJECT_COLORS[subject] ?? 'bg-gray-100 text-gray-700'
           const totalQ = chapterUploads.reduce((s, u) => s + u.question_count, 0)
           const pending = chapterUploads.filter(u => (statusState[u.id] ?? u.status) === 'uploaded').length
+          const done    = chapterUploads.filter(u => (statusState[u.id] ?? u.status) === 'dtp_done').length
 
           return (
             <div key={key} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
@@ -190,6 +191,9 @@ export function QuestionBankClient({ uploads, centers }: Props) {
                 <div className="flex items-center gap-2">
                   {pending > 0 && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">{pending} pending</span>
+                  )}
+                  {done > 0 && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">{done} done</span>
                   )}
                   <span className="text-gray-400 text-sm">{expandedId === key ? '▲' : '▼'}</span>
                 </div>
