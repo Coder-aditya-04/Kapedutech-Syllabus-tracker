@@ -726,3 +726,15 @@ ALTER TABLE batches
       'CBSE_8TH', 'CBSE_9TH', 'CBSE_10TH'
     )
   );
+
+-- =====================================================================
+-- Migration 009: Backfill dtp_done status for existing fair copy uploads
+-- =====================================================================
+UPDATE question_uploads
+SET status = 'dtp_done'
+WHERE status = 'uploaded'
+  AND id IN (
+    SELECT DISTINCT upload_id
+    FROM question_files
+    WHERE is_fair_copy = true
+  );

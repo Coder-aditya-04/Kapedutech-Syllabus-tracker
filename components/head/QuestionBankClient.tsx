@@ -38,7 +38,13 @@ export function QuestionBankClient({ uploads, centers }: Props) {
     Object.fromEntries(uploads.map(u => [u.id, u.question_files.filter(f => f.is_fair_copy)]))
   )
   const [statusState, setStatusState] = useState<Record<string, string>>(
-    Object.fromEntries(uploads.map(u => [u.id, u.status]))
+    Object.fromEntries(uploads.map(u => [
+      u.id,
+      // Treat as done if DB says so, OR if fair copy files/typed questions already exist
+      u.status === 'dtp_done' || u.question_files.some(f => f.is_fair_copy) || u.typed_questions.length > 0
+        ? 'dtp_done'
+        : 'uploaded',
+    ]))
   )
   const [savingId, setSavingId] = useState<string | null>(null)
   const [uploadingFairFor, setUploadingFairFor] = useState<string | null>(null)
