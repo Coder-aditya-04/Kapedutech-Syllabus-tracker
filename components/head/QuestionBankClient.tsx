@@ -37,6 +37,9 @@ export function QuestionBankClient({ uploads, centers }: Props) {
   const [fairFilesState, setFairFilesState] = useState<Record<string, QFile[]>>(
     Object.fromEntries(uploads.map(u => [u.id, u.question_files.filter(f => f.is_fair_copy)]))
   )
+  const [statusState, setStatusState] = useState<Record<string, string>>(
+    Object.fromEntries(uploads.map(u => [u.id, u.status]))
+  )
   const [savingId, setSavingId] = useState<string | null>(null)
   const [uploadingFairFor, setUploadingFairFor] = useState<string | null>(null)
   const [newQ, setNewQ] = useState({ question_text: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer: '', difficulty: 'medium' })
@@ -92,6 +95,7 @@ export function QuestionBankClient({ uploads, centers }: Props) {
     if (err) { setUploadingFairFor(null); alert('Upload failed: ' + err); return }
     if (savedFile) {
       setFairFilesState(prev => ({ ...prev, [uploadId]: [...(prev[uploadId] ?? []), savedFile] }))
+      setStatusState(prev => ({ ...prev, [uploadId]: 'dtp_done' }))
     }
     setUploadingFairFor(null)
   }
@@ -164,7 +168,7 @@ export function QuestionBankClient({ uploads, centers }: Props) {
           const [subject, chapterName] = key.split('||')
           const sc = SUBJECT_COLORS[subject] ?? 'bg-gray-100 text-gray-700'
           const totalQ = chapterUploads.reduce((s, u) => s + u.question_count, 0)
-          const pending = chapterUploads.filter(u => u.status === 'uploaded').length
+          const pending = chapterUploads.filter(u => (statusState[u.id] ?? u.status) === 'uploaded').length
 
           return (
             <div key={key} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
@@ -214,8 +218,8 @@ export function QuestionBankClient({ uploads, centers }: Props) {
                             {up.sub_topic && <div className="text-xs text-gray-400 mt-0.5 font-medium">Sub-topic: {up.sub_topic}</div>}
                             {up.notes && <div className="text-xs text-gray-500 mt-0.5 italic">&quot;{up.notes}&quot;</div>}
                           </div>
-                          <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${up.status === 'dtp_done' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                            {up.status === 'dtp_done' ? '✅ DTP Done' : '⏳ DTP Pending'}
+                          <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${(statusState[up.id] ?? up.status) === 'dtp_done' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            {(statusState[up.id] ?? up.status) === 'dtp_done' ? '✅ DTP Done' : '⏳ DTP Pending'}
                           </span>
                         </div>
 

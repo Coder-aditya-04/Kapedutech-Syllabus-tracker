@@ -52,5 +52,11 @@ export async function POST(req: NextRequest) {
     .select().single()
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 400 })
+
+  // Mark upload as DTP done when a fair copy is saved
+  if (isFairCopy) {
+    await admin.from('question_uploads').update({ status: 'dtp_done' }).eq('id', uploadId)
+  }
+
   return NextResponse.json({ file: savedFile })
 }
