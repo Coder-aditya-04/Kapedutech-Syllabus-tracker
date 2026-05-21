@@ -28,7 +28,7 @@ export function PendingTeachersCard({ pendingTeachers, centers, currentWeek }: P
       body: JSON.stringify({ teacherId }),
     })
     if (res.ok) {
-      setSent(prev => new Set([...prev, teacherId]))
+      setSent(prev => { const next = new Set(Array.from(prev)); next.add(teacherId); return next })
     } else {
       const { error } = await res.json().catch(() => ({ error: 'Failed' }))
       setErrors(prev => ({ ...prev, [teacherId]: error ?? 'Failed' }))
