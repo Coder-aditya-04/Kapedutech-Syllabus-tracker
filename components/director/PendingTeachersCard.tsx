@@ -12,12 +12,21 @@ interface Props {
 }
 
 export function PendingTeachersCard({ pendingTeachers, centers, currentWeek }: Props) {
-  const [sending, setSending]   = useState<string | null>(null)   // teacherId being sent
-  const [sent, setSent]         = useState<Set<string>>(new Set()) // successfully sent
+  const [sending, setSending]   = useState<string | null>(null)
+  const [sent, setSent]         = useState<Set<string>>(new Set())
   const [errors, setErrors]     = useState<Record<string, string>>({})
   const [sendingAll, setSendingAll] = useState(false)
   const [reportSent, setReportSent] = useState(false)
   const [reportSending, setReportSending] = useState(false)
+
+  const knownCenterIds = new Set(centers.map(c => c.id))
+  const ungrouped = pendingTeachers.filter(t => !t.center_id || !knownCenterIds.has(t.center_id))
+  const groups: { id: string; name: string; teachers: Teacher[] }[] = [
+    ...centers
+      .map(c => ({ id: c.id, name: c.name, teachers: pendingTeachers.filter(t => t.center_id === c.id) }))
+      .filter(g => g.teachers.length > 0),
+    ...(ungrouped.length > 0 ? [{ id: 'ungrouped', name: 'Other', teachers: ungrouped }] : []),
+  ]
 
   async function sendWarning(teacherId: string) {
     setSending(teacherId)
@@ -102,19 +111,16 @@ export function PendingTeachersCard({ pendingTeachers, centers, currentWeek }: P
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {centers.map(center => {
-              const centerPending = pendingTeachers.filter(t => t.center_id === center.id)
-              if (centerPending.length === 0) return null
-              return (
-                <div key={center.id} className="rounded-xl border border-red-100 bg-red-50/40 p-4">
+            {groups.map(group => (
+                <div key={group.id} className="rounded-xl border border-red-100 bg-red-50/40 p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <CenterBadge name={center.name} />
+                    <CenterBadge name={group.name} />
                     <span className="text-xs font-black text-red-600 ml-auto">
-                      {centerPending.filter(t => !sent.has(t.id)).length} pending
+                      {group.teachers.filter(t => !sent.has(t.id)).length} pending
                     </span>
                   </div>
                   <div className="space-y-2">
-                    {centerPending.map(t => {
+                    {group.teachers.map(t => {
                       const isSent    = sent.has(t.id)
                       const isSending = sending === t.id
                       const errMsg    = errors[t.id]
@@ -146,7 +152,7 @@ export function PendingTeachersCard({ pendingTeachers, centers, currentWeek }: P
                   </div>
                 </div>
               )
-            })}
+            )}
           </div>
         </div>
       )}
