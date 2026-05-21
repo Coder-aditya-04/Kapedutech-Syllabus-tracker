@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { calculatePace, getCurrentMonthKey, MONTHS } from '@/lib/pace'
+import { calculatePace, getCurrentMonthKey, getAcademicWeek, MONTHS } from '@/lib/pace'
 import { PaceStatusBadge } from '@/components/shared/PaceStatusBadge'
 import { CenterBadge } from '@/components/shared/CenterBadge'
 import { BatchTypeBadge } from '@/components/shared/BatchTypeBadge'
@@ -20,16 +20,20 @@ export default async function DirectorOverviewPage() {
   interface TeacherRow { id: string; name: string; center_id: string | null }
   interface CenterRow  { id: string; name: string }
 
-  const [batchRes, logRes, teacherRes, centerRes] = await Promise.all([
+  const [batchRes, logRes, teacherRes, centerRes, assignRes] = await Promise.all([
     supabase.from('batches').select('id, name, batch_type, class_level, center_id, centers(name)').eq('is_active', true),
     supabase.from('weekly_logs').select('batch_id, subject, lectures_this_week, teacher_id, week_number').eq('is_holiday', false).gte('submitted_at', monthStart).lte('submitted_at', monthEnd),
     supabase.from('user_profiles').select('id, name, center_id').eq('role', 'teacher'),
     supabase.from('centers').select('id, name'),
+    supabase.from('teacher_batch_assignments').select('teacher_id').eq('is_active', true),
   ])
-  const batches  = batchRes.data  as BatchRow[]   | null
-  const logsRaw  = logRes.data    as LogRow[]     | null
-  const teachers = teacherRes.data as TeacherRow[] | null
-  const centers  = centerRes.data  as CenterRow[]  | null
+  const batches   = batchRes.data   as BatchRow[]   | null
+  const logsRaw   = logRes.data     as LogRow[]     | null
+  const teachers  = teacherRes.data as TeacherRow[] | null
+  const centers   = centerRes.data  as CenterRow[]  | null
+
+  // Teachers with at least one active batch assignment
+  const assignedTeacherIds = new Set((assignRes.data ?? []).map(a => a.teacher_id as string))
 
   const logMap: Record<string, number> = {}
   const weekLogs = new Map<string, Set<number>>()
@@ -58,6 +62,15 @@ export default async function DirectorOverviewPage() {
       if (statusCounts[center]) statusCounts[center][pace.status]++
     }
   }
+
+  // Teachers who have active assignments but no log entry this week
+  const currentWeek = getAcademicWeek()
+  const submittedThisWeek = new Set(
+    (logsRaw ?? []).filter(l => l.week_number === currentWeek).map(l => l.teacher_id)
+  )
+  const pendingTeachers = (teachers ?? []).filter(
+    t => assignedTeacherIds.has(t.id) && !submittedThisWeek.has(t.id)
+  )
 
   const totalTeachers  = teachers?.length ?? 0
   const activeTeachers = weekLogs.size
@@ -121,6 +134,56 @@ export default async function DirectorOverviewPage() {
             </div>
           )
         })}
+      </div>
+
+      {/* Pending log submissions this week */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4"
+          style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)' }}>
+          <div>
+            <h2 className="text-base font-black text-gray-900">⚠️ Log Not Submitted — Week {currentWeek}</h2>
+            <p className="text-xs text-gray-500 font-semibold mt-0.5">Teachers with active batches who haven't submitted any log this week</p>
+          </div>
+          <span className={`text-sm font-black px-3 py-1 rounded-full ${pendingTeachers.length === 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {pendingTeachers.length === 0 ? '✅ All submitted' : `${pendingTeachers.length} pending`}
+          </span>
+        </div>
+
+        {pendingTeachers.length === 0 ? (
+          <div className="px-6 py-8 text-center">
+            <div className="text-3xl mb-2">🎉</div>
+            <p className="font-bold text-green-700">All teachers have submitted their log this week!</p>
+          </div>
+        ) : (
+          <div className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(centers ?? []).map(center => {
+                const centerPending = pendingTeachers.filter(t => t.center_id === center.id)
+                if (centerPending.length === 0) return null
+                return (
+                  <div key={center.id} className="rounded-xl border border-red-100 bg-red-50/40 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CenterBadge name={center.name} />
+                      <span className="text-xs font-black text-red-600 ml-auto">{centerPending.length} pending</span>
+                    </div>
+                    <div className="space-y-2">
+                      {centerPending.map(t => (
+                        <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 bg-white rounded-lg border border-red-100">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white shrink-0"
+                            style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}>
+                            {t.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-bold text-gray-800">{t.name}</span>
+                          <span className="ml-auto text-[10px] font-bold text-red-400 uppercase tracking-wide">No log</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Full pace table */}
