@@ -4,6 +4,7 @@ import { PaceStatusBadge } from '@/components/shared/PaceStatusBadge'
 import { CenterBadge } from '@/components/shared/CenterBadge'
 import { BatchTypeBadge } from '@/components/shared/BatchTypeBadge'
 import { SubjectBadge } from '@/components/shared/SubjectBadge'
+import { PendingTeachersCard } from '@/components/director/PendingTeachersCard'
 import type { PaceStatus } from '@/lib/supabase/types'
 
 export const revalidate = 0
@@ -137,54 +138,11 @@ export default async function DirectorOverviewPage() {
       </div>
 
       {/* Pending log submissions this week */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4"
-          style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)' }}>
-          <div>
-            <h2 className="text-base font-black text-gray-900">⚠️ Log Not Submitted — Week {currentWeek}</h2>
-            <p className="text-xs text-gray-500 font-semibold mt-0.5">Teachers with active batches who haven't submitted any log this week</p>
-          </div>
-          <span className={`text-sm font-black px-3 py-1 rounded-full ${pendingTeachers.length === 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {pendingTeachers.length === 0 ? '✅ All submitted' : `${pendingTeachers.length} pending`}
-          </span>
-        </div>
-
-        {pendingTeachers.length === 0 ? (
-          <div className="px-6 py-8 text-center">
-            <div className="text-3xl mb-2">🎉</div>
-            <p className="font-bold text-green-700">All teachers have submitted their log this week!</p>
-          </div>
-        ) : (
-          <div className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(centers ?? []).map(center => {
-                const centerPending = pendingTeachers.filter(t => t.center_id === center.id)
-                if (centerPending.length === 0) return null
-                return (
-                  <div key={center.id} className="rounded-xl border border-red-100 bg-red-50/40 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <CenterBadge name={center.name} />
-                      <span className="text-xs font-black text-red-600 ml-auto">{centerPending.length} pending</span>
-                    </div>
-                    <div className="space-y-2">
-                      {centerPending.map(t => (
-                        <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 bg-white rounded-lg border border-red-100">
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white shrink-0"
-                            style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}>
-                            {t.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
-                          </div>
-                          <span className="text-sm font-bold text-gray-800">{t.name}</span>
-                          <span className="ml-auto text-[10px] font-bold text-red-400 uppercase tracking-wide">No log</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-      </div>
+      <PendingTeachersCard
+        pendingTeachers={pendingTeachers}
+        centers={centers ?? []}
+        currentWeek={currentWeek}
+      />
 
       {/* Full pace table */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
