@@ -173,7 +173,7 @@ export async function POST() {
 
     const resend = new Resend(process.env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
-      from: 'Kapedutech Reports <noreply@unacademynashik.com>',
+      from: 'Prayaas Education <noreply@prayaaseducation.co.in>',
       to: emailList,
       subject: `📊 Monthly Academic Report — ${monthName} ${year}`,
       html,

@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/send-warnings",
+      "schedule": "30 12 * * 5"
+    },
+    {
+      "path": "/api/cron/weekly-digest",
+      "schedule": "30 15 * * 6"
+    }
+  ]
+}

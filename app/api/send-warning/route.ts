@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { error } = await resend.emails.send({
-    from: 'Unacademy Nashik <noreply@unacademynashik.com>',
+    from: 'Prayaas Education <noreply@prayaaseducation.co.in>',
     to: teacherEmail,
     cc: ccEmails.length > 0 ? ccEmails : undefined,
     subject: `⚠️ Reminder: Weekly Log Not Submitted — Week ${currentWeek}`,
@@ -71,7 +71,7 @@ function buildWarningHtml({ teacherName, senderName, weekNumber, appUrl }: {
         <!-- Header -->
         <tr><td style="background:linear-gradient(135deg,#0f0a1e,#1a0a3e);border-radius:16px 16px 0 0;padding:28px 32px;text-align:center;">
           <div style="display:inline-block;background:linear-gradient(135deg,#7C3AED,#1A73E8);border-radius:12px;padding:8px 18px;margin-bottom:12px;">
-            <span style="color:#fff;font-size:13px;font-weight:800;letter-spacing:1px;">UNACADEMY NASHIK</span>
+            <span style="color:#fff;font-size:13px;font-weight:800;letter-spacing:1px;">PRAYAAS EDUCATION</span>
           </div>
           <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0;">⚠️ Action Required</h1>
           <p style="color:#a78bfa;font-size:13px;margin:6px 0 0;">Weekly Log Submission — Week ${weekNumber}</p>
@@ -101,14 +101,14 @@ function buildWarningHtml({ teacherName, senderName, weekNumber, appUrl }: {
 
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
           <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center;">
-            This reminder was sent by <strong>${senderName}</strong> via the Unacademy Nashik Academic System.<br>
+            This reminder was sent by <strong>${senderName}</strong> via the Prayaas Education Academic System.<br>
             Please do not reply to this email.
           </p>
         </td></tr>
 
         <!-- Footer -->
         <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 16px 16px;padding:16px 32px;text-align:center;">
-          <p style="color:#9ca3af;font-size:11px;margin:0;">Unacademy Nashik · Academic Management System</p>
+          <p style="color:#9ca3af;font-size:11px;margin:0;">Prayaas Education · Academic Management System</p>
         </td></tr>
 
       </table>

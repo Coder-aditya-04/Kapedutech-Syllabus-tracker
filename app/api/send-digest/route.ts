@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'No recipients found' })
 
   const { error } = await resend.emails.send({
-    from: 'Unacademy Nashik <noreply@unacademynashik.com>',
+    from: 'Prayaas Education <noreply@prayaaseducation.co.in>',
     to: emailList,
     subject: `📊 Weekly Academic Report — Week ${reportWeek} | Unacademy Nashik`,
     html: buildDigestHtml({ reportWeek, summary, submitted, notSubmitted, appUrl, callerName }),
@@ -127,7 +127,7 @@ function buildDigestHtml({ reportWeek, summary, submitted, notSubmitted, appUrl,
       <!-- Header -->
       <tr><td style="background:linear-gradient(135deg,#0f0a1e,#0f1e0a);border-radius:16px 16px 0 0;padding:28px 32px;text-align:center;">
         <div style="display:inline-block;background:linear-gradient(135deg,#43A047,#1A73E8);border-radius:12px;padding:8px 18px;margin-bottom:12px;">
-          <span style="color:#fff;font-size:13px;font-weight:800;letter-spacing:1px;">UNACADEMY NASHIK</span>
+          <span style="color:#fff;font-size:13px;font-weight:800;letter-spacing:1px;">PRAYAAS EDUCATION</span>
         </div>
         <h1 style="color:#fff;font-size:24px;font-weight:900;margin:0;">📊 Weekly Academic Report</h1>
         <p style="color:#86efac;font-size:14px;margin:8px 0 0;font-weight:600;">Week ${reportWeek} Summary</p>
@@ -199,7 +199,7 @@ function buildDigestHtml({ reportWeek, summary, submitted, notSubmitted, appUrl,
 
       <!-- Footer -->
       <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 16px 16px;padding:16px 32px;text-align:center;">
-        <p style="color:#9ca3af;font-size:11px;margin:0;">Sent by <strong>${callerName}</strong> via Unacademy Nashik Academic System</p>
+        <p style="color:#9ca3af;font-size:11px;margin:0;">Sent by <strong>${callerName}</strong> via Prayaas Education Academic System</p>
       </td></tr>
 
     </table>
