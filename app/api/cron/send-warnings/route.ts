@@ -32,11 +32,8 @@ export async function GET(req: NextRequest) {
   // Head + director emails for CC; find academic head name for email body
   const { data: mgmt } = await admin.from('user_profiles').select('user_id, role, name').in('role', ['academic_head', 'director'])
   const headName = mgmt?.find(m => m.role === 'academic_head')?.name ?? 'Academic Head'
-  const ccEmails: string[] = []
-  for (const m of mgmt ?? []) {
-    const { data: { user } } = await admin.auth.admin.getUserById(m.user_id)
-    if (user?.email) ccEmails.push(user.email)
-  }
+  const mgmtUsers = await Promise.all((mgmt ?? []).map(m => admin.auth.admin.getUserById(m.user_id)))
+  const ccEmails = mgmtUsers.map(r => r.data.user?.email).filter((e): e is string => !!e)
 
   const results: { name: string; status: string }[] = []
 

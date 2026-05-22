@@ -21,12 +21,13 @@ export default async function DirectorOverviewPage() {
   interface TeacherRow { id: string; name: string; center_id: string | null }
   interface CenterRow  { id: string; name: string }
 
-  const [batchRes, logRes, teacherRes, centerRes, assignRes] = await Promise.all([
+  const [batchRes, logRes, teacherRes, centerRes, assignRes, mgmtRes] = await Promise.all([
     supabase.from('batches').select('id, name, batch_type, class_level, center_id, centers(name)').eq('is_active', true),
     supabase.from('weekly_logs').select('batch_id, subject, lectures_this_week, teacher_id, week_number').eq('is_holiday', false).gte('submitted_at', monthStart).lte('submitted_at', monthEnd),
     supabase.from('user_profiles').select('id, name, center_id').eq('role', 'teacher'),
     supabase.from('centers').select('id, name'),
     supabase.from('teacher_batch_assignments').select('teacher_id').eq('is_active', true),
+    supabase.from('user_profiles').select('id').in('role', ['academic_head', 'director']),
   ])
   const batches   = batchRes.data   as BatchRow[]   | null
   const logsRaw   = logRes.data     as LogRow[]     | null
@@ -35,6 +36,7 @@ export default async function DirectorOverviewPage() {
 
   // Teachers with at least one active batch assignment
   const assignedTeacherIds = new Set((assignRes.data ?? []).map(a => a.teacher_id as string))
+  const mgmtIds = new Set((mgmtRes.data ?? []).map(m => m.id as string))
 
   const logMap: Record<string, number> = {}
   const weekLogs = new Map<string, Set<number>>()
@@ -70,7 +72,7 @@ export default async function DirectorOverviewPage() {
     (logsRaw ?? []).filter(l => l.week_number === currentWeek).map(l => l.teacher_id)
   )
   const pendingTeachers = (teachers ?? []).filter(
-    t => assignedTeacherIds.has(t.id) && !submittedThisWeek.has(t.id)
+    t => assignedTeacherIds.has(t.id) && !submittedThisWeek.has(t.id) && !mgmtIds.has(t.id)
   )
 
   const totalTeachers  = teachers?.length ?? 0

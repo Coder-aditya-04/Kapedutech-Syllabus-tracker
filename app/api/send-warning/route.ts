@@ -35,11 +35,8 @@ export async function POST(req: NextRequest) {
   const { data: mgmt } = await admin
     .from('user_profiles').select('user_id, role, name').in('role', ['academic_head', 'director'])
   const headName = mgmt?.find(m => m.role === 'academic_head')?.name ?? caller!.name
-  const ccEmails: string[] = []
-  for (const m of mgmt ?? []) {
-    const { data: { user: mu } } = await admin.auth.admin.getUserById(m.user_id)
-    if (mu?.email && mu.email !== teacherEmail) ccEmails.push(mu.email)
-  }
+  const mgmtUsers = await Promise.all((mgmt ?? []).map(m => admin.auth.admin.getUserById(m.user_id)))
+  const ccEmails = mgmtUsers.map(r => r.data.user?.email).filter((e): e is string => !!e && e !== teacherEmail)
 
   const { error } = await resend.emails.send({
     from: 'Prayaas Education <noreply@prayaaseducation.co.in>',

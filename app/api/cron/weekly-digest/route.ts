@@ -47,11 +47,8 @@ export async function GET(req: NextRequest) {
 
   const { data: mgmt } = await admin
     .from('user_profiles').select('user_id').in('role', ['academic_head', 'director'])
-  const emailList: string[] = []
-  for (const m of mgmt ?? []) {
-    const { data: { user } } = await admin.auth.admin.getUserById(m.user_id)
-    if (user?.email) emailList.push(user.email)
-  }
+  const mgmtUsers = await Promise.all((mgmt ?? []).map(m => admin.auth.admin.getUserById(m.user_id)))
+  const emailList = mgmtUsers.map(r => r.data.user?.email).filter((e): e is string => !!e)
   if (emailList.length === 0)
     return NextResponse.json({ message: 'No recipients' })
 
