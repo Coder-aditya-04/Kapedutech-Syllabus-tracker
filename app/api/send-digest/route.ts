@@ -44,16 +44,13 @@ export async function POST(request: NextRequest) {
     .eq('is_holiday', false)
     .order('submitted_at', { ascending: false }) as { data: LogRow[] | null }
 
-  // All teachers with active assignments
+  // All teachers
   const { data: allTeachers } = await admin
     .from('user_profiles').select('id, name, center_id').eq('role', 'teacher')
-  const { data: assignments } = await admin
-    .from('teacher_batch_assignments').select('teacher_id').eq('is_active', true)
-  const assignedIds = new Set((assignments ?? []).map(a => a.teacher_id as string))
 
   const submittedIds = new Set((logs ?? []).map(l => l.teacher_id))
-  const notSubmitted = (allTeachers ?? []).filter(t => assignedIds.has(t.id) && !submittedIds.has(t.id))
-  const submitted    = (allTeachers ?? []).filter(t => assignedIds.has(t.id) && submittedIds.has(t.id))
+  const notSubmitted = (allTeachers ?? []).filter(t => !submittedIds.has(t.id))
+  const submitted    = (allTeachers ?? []).filter(t => submittedIds.has(t.id))
 
   // Summary table by batch+subject
   const summary: Record<string, { lec: number; chapters: string[] }> = {}

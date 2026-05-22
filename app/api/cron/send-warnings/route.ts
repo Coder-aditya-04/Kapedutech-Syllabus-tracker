@@ -29,8 +29,9 @@ export async function GET(req: NextRequest) {
   if (pending.length === 0)
     return NextResponse.json({ message: 'All teachers submitted — no warnings needed', week: currentWeek })
 
-  // Head + director emails for CC
-  const { data: mgmt } = await admin.from('user_profiles').select('user_id').in('role', ['academic_head', 'director'])
+  // Head + director emails for CC; find academic head name for email body
+  const { data: mgmt } = await admin.from('user_profiles').select('user_id, role, name').in('role', ['academic_head', 'director'])
+  const headName = mgmt?.find(m => m.role === 'academic_head')?.name ?? 'Academic Head'
   const ccEmails: string[] = []
   for (const m of mgmt ?? []) {
     const { data: { user } } = await admin.auth.admin.getUserById(m.user_id)
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
     const { data: { user: tu } } = await admin.auth.admin.getUserById(teacher.user_id)
     if (!tu?.email) { results.push({ name: teacher.name, status: 'no email' }); continue }
 
-    const html = buildWarningHtml(teacher.name, currentWeek, appUrl)
+    const html = buildWarningHtml(teacher.name, headName, currentWeek, appUrl)
     const { error } = await resend.emails.send({
       from: 'Prayaas Education <noreply@prayaaseducation.co.in>',
       to: tu.email,
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ week: currentWeek, warnings: results })
 }
 
-function buildWarningHtml(teacherName: string, weekNumber: number, appUrl: string) {
+function buildWarningHtml(teacherName: string, headName: string, weekNumber: number, appUrl: string) {
   return `<!DOCTYPE html><html lang="en">
 <head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f3ff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
@@ -78,7 +79,7 @@ function buildWarningHtml(teacherName: string, weekNumber: number, appUrl: strin
     <p style="color:#6b7280;font-size:14px;margin:0 0 8px;">If you were unable to conduct classes, please:</p>
     <ol style="color:#374151;font-size:14px;padding-left:20px;margin:0 0 24px;line-height:2;">
       <li>Submit your log with 0 lectures and note the reason</li>
-      <li>Inform your Academic Head directly</li>
+      <li>Inform your Academic Head: <strong>${headName}</strong> directly</li>
     </ol>
     <div style="text-align:center;margin:28px 0;">
       <a href="${appUrl}/teacher/log"

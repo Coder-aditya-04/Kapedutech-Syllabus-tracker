@@ -31,9 +31,10 @@ export async function POST(req: NextRequest) {
   const teacherEmail = teacherUser?.email
   if (!teacherEmail) return NextResponse.json({ error: 'Teacher has no email' }, { status: 404 })
 
-  // Head + director emails for CC
+  // Head + director emails for CC; also find academic head name for email body
   const { data: mgmt } = await admin
-    .from('user_profiles').select('user_id').in('role', ['academic_head', 'director'])
+    .from('user_profiles').select('user_id, role, name').in('role', ['academic_head', 'director'])
+  const headName = mgmt?.find(m => m.role === 'academic_head')?.name ?? caller!.name
   const ccEmails: string[] = []
   for (const m of mgmt ?? []) {
     const { data: { user: mu } } = await admin.auth.admin.getUserById(m.user_id)
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
     subject: `⚠️ Reminder: Weekly Log Not Submitted — Week ${currentWeek}`,
     html: buildWarningHtml({
       teacherName: teacher.name,
-      senderName: caller!.name,
+      senderName: headName,
       weekNumber: currentWeek,
       appUrl,
     }),
