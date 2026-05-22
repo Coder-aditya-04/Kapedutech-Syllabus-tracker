@@ -70,27 +70,37 @@ export default function TeacherEditPage() {
     if (existing) {
       if (!existing.is_active) {
         await supabase.from('teacher_batch_assignments').update({ is_active: true }).eq('id', existing.id)
+        setAssignments(prev => prev.map(a => a.id === existing.id ? { ...a, is_active: true } : a))
       } else {
         setError('This assignment already exists'); setSaving(false); return
       }
     } else {
-      await (supabase.from('teacher_batch_assignments') as unknown as { insert: (v: object) => Promise<{ error: Error | null }> })
-        .insert({ teacher_id: id, batch_id: addBatchId, subject: addSubject, is_active: true })
+      const batch = batches.find(b => b.id === addBatchId)!
+      const { data } = await (supabase.from('teacher_batch_assignments') as unknown as {
+        insert: (v: object) => { select: () => Promise<{ data: { id: string }[] | null }> }
+      }).insert({ teacher_id: id, batch_id: addBatchId, subject: addSubject, is_active: true }).select()
+      const newId = data?.[0]?.id ?? crypto.randomUUID()
+      setAssignments(prev => [...prev, {
+        id: newId, subject: addSubject, is_active: true,
+        batches: { id: batch.id, name: batch.name, batch_type: batch.batch_type, centers: batch.centers as { name: string } },
+      }])
     }
     setAddBatchId(''); setAddSubject('')
-    await load(); setSaving(false)
+    setSaving(false)
   }
 
   async function toggleAssignment(assignmentId: string, currentActive: boolean) {
     setSaving(true)
     await supabase.from('teacher_batch_assignments').update({ is_active: !currentActive }).eq('id', assignmentId)
-    await load(); setSaving(false)
+    setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, is_active: !currentActive } : a))
+    setSaving(false)
   }
 
   async function updateRole(newRole: string) {
     setSaving(true)
     await supabase.from('user_profiles').update({ role: newRole }).eq('id', id)
-    await load(); setSaving(false)
+    setTeacher(prev => prev ? { ...prev, role: newRole } : prev)
+    setSaving(false)
   }
 
   async function saveName() {
@@ -98,20 +108,21 @@ export default function TeacherEditPage() {
     if (!trimmed) return
     setSaving(true)
     await supabase.from('user_profiles').update({ name: trimmed }).eq('id', id)
+    setTeacher(prev => prev ? { ...prev, name: trimmed } : prev)
     setEditingName(false)
-    await load()
     setSaving(false)
   }
 
   async function saveCode() {
     setSaving(true)
+    const code = codeInput.trim()
     await fetch('/api/update-teacher-code', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profileId: id, code: codeInput.trim() }),
+      body: JSON.stringify({ profileId: id, code }),
     })
+    setTeacher(prev => prev ? { ...prev, teacher_code: code || null } : prev)
     setEditingCode(false)
-    await load()
     setSaving(false)
   }
 
