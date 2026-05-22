@@ -18,13 +18,13 @@ export default async function DirectorOverviewPage() {
 
   interface BatchRow   { id: string; name: string; batch_type: string; class_level: string; center_id: string; centers: { name: string } }
   interface LogRow     { batch_id: string; subject: string; lectures_this_week: number; teacher_id: string; week_number: number }
-  interface TeacherRow { id: string; name: string; center_id: string | null }
+  interface TeacherRow { id: string; name: string; center_id: string | null; role: string }
   interface CenterRow  { id: string; name: string }
 
   const [batchRes, logRes, teacherRes, centerRes, assignRes] = await Promise.all([
     supabase.from('batches').select('id, name, batch_type, class_level, center_id, centers(name)').eq('is_active', true),
     supabase.from('weekly_logs').select('batch_id, subject, lectures_this_week, teacher_id, week_number').eq('is_holiday', false).gte('submitted_at', monthStart).lte('submitted_at', monthEnd),
-    supabase.from('user_profiles').select('id, name, center_id').in('role', ['teacher', 'academic_head']),
+    supabase.from('user_profiles').select('id, name, center_id, role').in('role', ['teacher', 'academic_head', 'director']),
     supabase.from('centers').select('id, name'),
     supabase.from('teacher_batch_assignments').select('teacher_id').eq('is_active', true),
   ])
@@ -72,7 +72,7 @@ export default async function DirectorOverviewPage() {
   const pendingTeachers = (teachers ?? []).filter(
     t => assignedTeacherIds.has(t.id) && !submittedThisWeek.has(t.id)  )
 
-  const totalTeachers  = teachers?.length ?? 0
+  const totalTeachers  = teachers?.filter(t => t.role === 'teacher').length ?? 0
   const activeTeachers = weekLogs.size
   const totalLogs      = logsRaw?.length ?? 0
   const totalBatches   = batches?.length ?? 0
@@ -107,7 +107,7 @@ export default async function DirectorOverviewPage() {
       <div className="grid md:grid-cols-2 gap-6 mb-8">
         {(centers ?? []).map(center => {
           const counts         = statusCounts[center.name] ?? { behind: 0, slow: 0, on_track: 0, fast: 0, no_entry: 0 }
-          const centerTeachers = teachers?.filter(t => t.center_id === center.id) ?? []
+          const centerTeachers = teachers?.filter(t => t.center_id === center.id && t.role === 'teacher') ?? []
           const centerActive   = centerTeachers.filter(t => weekLogs.has(t.id)).length
 
           return (
