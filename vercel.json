@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/send-warnings",
-      "schedule": "30 12 * * 5"
+      "schedule": "30 12 * * 6"
     },
     {
       "path": "/api/cron/weekly-digest",

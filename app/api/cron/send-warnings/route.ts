@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { Resend } from 'resend'
 import { getAcademicWeek } from '@/lib/pace'
 
-// Runs automatically every Friday at 6:00 PM IST (12:30 UTC)
+// Runs automatically every Saturday at 6:00 PM IST (12:30 UTC)
 // Sends warning emails to all teachers who haven't submitted this week's log
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('authorization')
