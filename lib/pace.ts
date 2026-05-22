@@ -2,11 +2,12 @@ import type { PaceStatus } from '@/lib/supabase/types'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] as const
 
-// Academic year starts May 1, 2026. Week 1 = first week of May.
+// Weeks run Saturday–Friday. Week 1 starts May 2, 2026 (first Saturday of academic year).
 export function getAcademicWeek(): number {
-  const start = new Date(2026, 4, 1) // May 1, 2026
+  const firstSat = new Date(2026, 4, 2) // May 2, 2026 – first Saturday
   const now = new Date()
-  return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1)
+  const diff = now.getTime() - firstSat.getTime()
+  return diff < 0 ? 1 : Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1
 }
 
 export function getCurrentMonthKey(): string {
