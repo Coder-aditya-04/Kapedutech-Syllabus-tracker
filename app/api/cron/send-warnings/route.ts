@@ -30,8 +30,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: 'All teachers submitted — no warnings needed', week: currentWeek })
 
   // Head + director emails for CC; find academic head name for email body
-  const { data: mgmt } = await admin.from('user_profiles').select('user_id, role, name').in('role', ['academic_head', 'director'])
-  const headName = mgmt?.find(m => m.role === 'academic_head')?.name ?? 'Academic Head'
+  // Prefer the academic_head with no center_id (overall head, Avinash Dubey) over center-specific heads
+  const { data: mgmt } = await admin.from('user_profiles').select('user_id, role, name, center_id').in('role', ['academic_head', 'director'])
+  const headName = mgmt?.find(m => m.role === 'academic_head' && !m.center_id)?.name
+                ?? mgmt?.find(m => m.role === 'academic_head')?.name
+                ?? 'Academic Head'
   const mgmtUsers = await Promise.all((mgmt ?? []).map(m => admin.auth.admin.getUserById(m.user_id)))
   const ccEmails = mgmtUsers.map(r => r.data.user?.email).filter((e): e is string => !!e)
 
@@ -71,7 +74,7 @@ function buildWarningHtml(teacherName: string, headName: string, weekNumber: num
     <p style="color:#374151;font-size:15px;margin:0 0 16px;">Dear <strong>${teacherName}</strong>,</p>
     <div style="background:#fef3c7;border:1.5px solid #fbbf24;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
       <p style="color:#92400e;font-size:14px;font-weight:700;margin:0 0 6px;">📋 Your weekly log for Week ${weekNumber} has not been submitted yet.</p>
-      <p style="color:#b45309;font-size:13px;margin:0;">Please submit it today — this is an automated reminder sent every Friday.</p>
+      <p style="color:#b45309;font-size:13px;margin:0;">Please submit it today — this is an automated reminder sent every Saturday.</p>
     </div>
     <p style="color:#6b7280;font-size:14px;margin:0 0 8px;">If you were unable to conduct classes, please:</p>
     <ol style="color:#374151;font-size:14px;padding-left:20px;margin:0 0 24px;line-height:2;">

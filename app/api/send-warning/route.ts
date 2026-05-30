@@ -32,9 +32,12 @@ export async function POST(req: NextRequest) {
   if (!teacherEmail) return NextResponse.json({ error: 'Teacher has no email' }, { status: 404 })
 
   // Head + director emails for CC; also find academic head name for email body
+  // Prefer the academic_head with no center_id (overall head, Avinash Dubey) over center-specific heads
   const { data: mgmt } = await admin
-    .from('user_profiles').select('user_id, role, name').in('role', ['academic_head', 'director'])
-  const headName = mgmt?.find(m => m.role === 'academic_head')?.name ?? caller!.name
+    .from('user_profiles').select('user_id, role, name, center_id').in('role', ['academic_head', 'director'])
+  const headName = mgmt?.find(m => m.role === 'academic_head' && !m.center_id)?.name
+                ?? mgmt?.find(m => m.role === 'academic_head')?.name
+                ?? caller!.name
   const mgmtUsers = await Promise.all((mgmt ?? []).map(m => admin.auth.admin.getUserById(m.user_id)))
   const ccEmails = mgmtUsers.map(r => r.data.user?.email).filter((e): e is string => !!e && e !== teacherEmail)
 
